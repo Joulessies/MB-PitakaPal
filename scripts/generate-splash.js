@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global __dirname, Buffer */
 /**
  * Generates the PitakaPal splash screen image.
  * Dark background #282828, wallet logo from 8.png, "PitakaPal" text.

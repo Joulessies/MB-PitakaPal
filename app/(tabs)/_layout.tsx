@@ -1,9 +1,9 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
-import { View } from 'react-native';
 
 import { HapticTab } from '@/components/HapticTab';
 import Feather from '@expo/vector-icons/Feather';
+import { YStack } from 'tamagui';
 import { useAppTheme } from '../../context/ThemeContext';
 
 export default function TabLayout() {
@@ -30,13 +30,13 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ focused }) => (
-            <View style={{
-              width: 44, height: 44, borderRadius: 22,
-              backgroundColor: focused ? colors.text : 'transparent',
-              justifyContent: 'center', alignItems: 'center'
-            }}>
+            <YStack
+              width={44} height={44} borderRadius={22}
+              backgroundColor={focused ? colors.text : 'transparent'}
+              justifyContent="center" alignItems="center"
+            >
               <Feather name="home" size={20} color={focused ? colors.background : '#888888'} />
-            </View>
+            </YStack>
           ),
         }}
       />
@@ -45,13 +45,13 @@ export default function TabLayout() {
         options={{
           title: 'Wallet',
           tabBarIcon: ({ focused }) => (
-            <View style={{
-              width: 44, height: 44, borderRadius: 22,
-              backgroundColor: focused ? colors.text : 'transparent',
-              justifyContent: 'center', alignItems: 'center'
-            }}>
+            <YStack
+              width={44} height={44} borderRadius={22}
+              backgroundColor={focused ? colors.text : 'transparent'}
+              justifyContent="center" alignItems="center"
+            >
               <Feather name="credit-card" size={20} color={focused ? colors.background : '#888888'} />
-            </View>
+            </YStack>
           ),
         }}
       />
@@ -60,13 +60,13 @@ export default function TabLayout() {
         options={{
           title: 'Add',
           tabBarIcon: ({ focused }) => (
-            <View style={{
-              width: 44, height: 44, borderRadius: 22,
-              backgroundColor: focused ? colors.text : 'transparent',
-              justifyContent: 'center', alignItems: 'center'
-            }}>
+            <YStack
+              width={44} height={44} borderRadius={22}
+              backgroundColor={focused ? colors.text : 'transparent'}
+              justifyContent="center" alignItems="center"
+            >
               <Feather name="plus" size={20} color={focused ? colors.background : '#888888'} />
-            </View>
+            </YStack>
           ),
         }}
       />
@@ -75,13 +75,13 @@ export default function TabLayout() {
         options={{
           title: 'GPS',
           tabBarIcon: ({ focused }) => (
-            <View style={{
-              width: 44, height: 44, borderRadius: 22,
-              backgroundColor: focused ? colors.text : 'transparent',
-              justifyContent: 'center', alignItems: 'center'
-            }}>
+            <YStack
+              width={44} height={44} borderRadius={22}
+              backgroundColor={focused ? colors.text : 'transparent'}
+              justifyContent="center" alignItems="center"
+            >
               <Feather name="map-pin" size={20} color={focused ? colors.background : '#888888'} />
-            </View>
+            </YStack>
           ),
         }}
       />
@@ -97,13 +97,13 @@ export default function TabLayout() {
         options={{
           title: 'Settings',
           tabBarIcon: ({ focused }) => (
-            <View style={{
-              width: 44, height: 44, borderRadius: 22,
-              backgroundColor: focused ? colors.text : 'transparent',
-              justifyContent: 'center', alignItems: 'center'
-            }}>
+            <YStack
+              width={44} height={44} borderRadius={22}
+              backgroundColor={focused ? colors.text : 'transparent'}
+              justifyContent="center" alignItems="center"
+            >
               <Feather name="settings" size={20} color={focused ? colors.background : '#888888'} />
-            </View>
+            </YStack>
           ),
         }}
       />

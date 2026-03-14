@@ -2,13 +2,14 @@ import Feather from '@expo/vector-icons/Feather';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
-import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, TouchableWithoutFeedback, View } from 'react-native';
+import { Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, TouchableWithoutFeedback } from 'react-native';
 import Animated, { FadeInDown, FadeInUp, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
+import { Input, Text, XStack, YStack } from 'tamagui';
+import { useAccounts } from '../../context/AccountContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTransactions } from '../../context/TransactionContext';
-import { useAccounts } from '../../context/AccountContext';
 
 const CATEGORIES = [
     { id: 'food', name: 'Food', icon: 'coffee', color: '#FF7043' },
@@ -33,13 +34,12 @@ export default function AddTransactionScreen() {
     const [selectedCategory, setSelectedCategory] = useState('food');
     const [selectedAccount, setSelectedAccount] = useState<string>('');
 
-    // Set default account when accounts are loaded
     React.useEffect(() => {
         if (accounts.length > 0 && !selectedAccount) {
             setSelectedAccount(accounts[0].id);
         }
-    }, [accounts]);
-    const [date, setDate] = useState(new Date());
+    }, [accounts, selectedAccount]);
+    const [date] = useState(new Date());
     const [location, setLocation] = useState('');
     const [locationCoords, setLocationCoords] = useState<{ lat: number, lng: number } | null>(null);
     const [note, setNote] = useState('');
@@ -55,14 +55,11 @@ export default function AddTransactionScreen() {
 
         const val = parseFloat(amount);
 
-        // Update Account Balance
         const targetAcc = accounts.find(a => a.id === selectedAccount);
         if (targetAcc) {
             const newBalance = type === 'income'
                 ? targetAcc.balance + val
                 : targetAcc.balance - val;
-
-            // Fire and forget balance update (or await if critical)
             updateAccountBalance(targetAcc.id, newBalance).catch(err => console.error("Balance update failed", err));
         }
 
@@ -86,7 +83,7 @@ export default function AddTransactionScreen() {
                     setNote('');
                     setLocation('');
                     setLocationCoords(null);
-                    router.replace('/(tabs)/');
+                    router.replace('/(tabs)');
                 }
             }
         ]);
@@ -100,46 +97,133 @@ export default function AddTransactionScreen() {
     <!DOCTYPE html>
     <html>
     <head>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <meta charset="utf-8">
+      <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+      <script src="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.js"></script>
+      <link href="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.css" rel="stylesheet" />
+      <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
+      <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
       <style>
         body { margin: 0; padding: 0; background-color: ${colors.background}; }
-        #map { width: 100%; height: 100vh; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .mapboxgl-ctrl-geocoder { 
+            width: 92% !important; 
+            max-width: none !important; 
+            margin: 12px 4% !important; 
+            border-radius: 14px; 
+            background-color: rgba(40, 40, 40, 0.95) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5) !important; 
+        }
+        .mapboxgl-ctrl-geocoder--input {
+            color: #FFFFFF !important;
+            padding: 14px 12px 14px 48px !important;
+            font-size: 15px !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+        }
+        .mapboxgl-ctrl-geocoder--icon-search {
+            fill: #FFFFFF !important;
+            opacity: 0.6;
+            top: 14px !important;
+            left: 16px !important;
+            width: 20px !important;
+            height: 20px !important;
+        }
+        .mapboxgl-ctrl-geocoder--button {
+            background-color: transparent !important;
+            top: 10px !important;
+        }
+        .mapboxgl-ctrl-geocoder--icon-close {
+            fill: #FFFFFF !important;
+            opacity: 0.6;
+        }
+        .mapboxgl-ctrl-geocoder .suggestions {
+            background-color: ${colors.card} !important;
+            border-radius: 12px !important;
+            margin-top: 8px !important;
+            border: 1px solid ${colors.border} !important;
+            overflow: hidden !important;
+        }
+        .mapboxgl-ctrl-geocoder .suggestions > li > a {
+            color: ${colors.text} !important;
+            padding: 12px 16px !important;
+        }
+        .mapboxgl-ctrl-geocoder .suggestions > .active > a {
+            background-color: ${colors.border} !important;
+        }
         .center-marker {
             position: absolute;
             top: 50%;
             left: 50%;
-            width: 32px;
-            height: 32px;
-            margin-top: -32px; 
-            margin-left: -16px;
+            width: 44px;
+            height: 44px;
+            margin-top: -44px; 
+            margin-left: -22px;
             z-index: 1000;
             pointer-events: none;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5));
         }
       </style>
     </head>
     <body>
       <div id="map"></div>
       <div class="center-marker">
-         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="#FF5252" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3" fill="white"></circle></svg>
+         <svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 24 24" fill="#007DFE" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3" fill="white"></circle>
+         </svg>
       </div>
       <script>
-        var map = L.map('map', { zoomControl: false }).setView([14.5547, 121.0244], 15);
+        mapboxgl.accessToken = '${process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN}';
         
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/${theme === 'dark' ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; OpenStreetMap &copy; CARTO',
-          subdomains: 'abcd',
-          maxZoom: 19
-        }).addTo(map);
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/${theme === 'dark' ? 'dark-v11' : 'light-v11'}',
+            center: [121.0244, 14.5547], // lng, lat
+            zoom: 14,
+            attributionControl: false
+        });
+
+        // Add search control
+        const geocoder = new MapboxGeocoder({
+            accessToken: mapboxgl.accessToken,
+            mapboxgl: mapboxgl,
+            marker: false,
+            placeholder: 'Search for a place...'
+        });
+        map.addControl(geocoder, 'top-left');
+
+        // Add navigation and geolocate controls
+        map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+        map.addControl(new mapboxgl.GeolocateControl({
+            positionOptions: { enableHighAccuracy: true },
+            trackUserLocation: true,
+            showUserHeading: true
+        }), 'bottom-right');
+
+        // Update location on geocoder result
+        geocoder.on('result', (e) => {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ 
+                lat: e.result.center[1], 
+                lng: e.result.center[0],
+                address: e.result.text 
+            }));
+        });
 
         function confirmLocation() {
             var center = map.getCenter();
-            fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + center.lat + '&lon=' + center.lng)
+            
+            // Format coords for Mapbox geocoding API (lng, lat)
+            var url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/' + center.lng + ',' + center.lat + '.json?access_token=' + mapboxgl.accessToken + '&types=address,poi,neighborhood';
+            
+            fetch(url)
               .then(response => response.json())
               .then(data => {
-                 var address = data.display_name.split(',')[0];
-                 if(!address) address = "Selected Location";
+                 var address = "Selected Location";
+                 if(data.features && data.features.length > 0) {
+                     address = data.features[0].text;
+                 }
                  
                  window.ReactNativeWebView.postMessage(JSON.stringify({ 
                     lat: center.lat, 
@@ -166,7 +250,7 @@ export default function AddTransactionScreen() {
             setLocation(data.address);
             setLocationCoords({ lat: data.lat, lng: data.lng });
             setMapVisible(false);
-        } catch (e) {
+        } catch (_e) {
             // ignore
         }
     };
@@ -177,135 +261,198 @@ export default function AddTransactionScreen() {
 
     return (
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
+            <YStack flex={1} paddingTop={insets.top} backgroundColor={colors.background}>
                 <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-                    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                        <View style={styles.header}>
-                            <Text style={[styles.headerTitle, { color: colors.text }]}>New Transaction</Text>
-                        </View>
+                    <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
+                        <YStack alignItems="center" marginVertical={20}>
+                            <Text fontSize={18} fontWeight="600" textTransform="uppercase" letterSpacing={2} color={colors.text}>
+                                New Transaction
+                            </Text>
+                        </YStack>
 
-                        <View style={[styles.segmentedControl, { backgroundColor: colors.card }]}>
-                            <TouchableOpacity
-                                style={[styles.segmentBtn, type === 'expense' && { backgroundColor: colors.background, shadowColor: colors.text }]}
+                        <XStack marginHorizontal={24} borderRadius={12} padding={4} marginBottom={24} backgroundColor={colors.card}>
+                            <YStack
+                                flex={1} paddingVertical={10} alignItems="center" borderRadius={8}
+                                backgroundColor={type === 'expense' ? colors.background : 'transparent'}
+                                pressStyle={{ opacity: 0.7 }}
                                 onPress={() => setType('expense')}
                             >
-                                <Text style={[styles.segmentText, type === 'expense' && { color: colors.text }]}>Expense</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.segmentBtn, type === 'income' && { backgroundColor: colors.background, shadowColor: colors.text }]}
+                                <Text fontSize={14} fontWeight="600" color={type === 'expense' ? colors.text : 'rgba(128,128,128,0.5)'}>
+                                    Expense
+                                </Text>
+                            </YStack>
+                            <YStack
+                                flex={1} paddingVertical={10} alignItems="center" borderRadius={8}
+                                backgroundColor={type === 'income' ? colors.background : 'transparent'}
+                                pressStyle={{ opacity: 0.7 }}
                                 onPress={() => setType('income')}
                             >
-                                <Text style={[styles.segmentText, type === 'income' && { color: colors.text }]}>Income</Text>
-                            </TouchableOpacity>
-                        </View>
+                                <Text fontSize={14} fontWeight="600" color={type === 'income' ? colors.text : 'rgba(128,128,128,0.5)'}>
+                                    Income
+                                </Text>
+                            </YStack>
+                        </XStack>
 
-                        {/* Wrapper for fields to ensure visibility */}
-                        <View style={{ marginBottom: 32 }}>
+                        {/* Wrapper for fields */}
+                        <YStack marginBottom={32}>
 
-                            <Animated.View entering={FadeInDown.delay(100)} style={styles.amountCard}>
-                                <Text style={[styles.amountLabel, { color: colors.textSecondary }]}>Enter Amount</Text>
-                                <View style={styles.amountRow}>
-                                    <Text style={[styles.currencySymbol, { color: type === 'expense' ? '#FF5252' : '#4CAF50' }]}>₱</Text>
-                                    <TextInput
-                                        style={[styles.amountInput, { color: type === 'expense' ? colors.danger : colors.activeToggle }]}
-                                        placeholder="0.00"
-                                        placeholderTextColor={type === 'expense' ? colors.dangerBg : 'rgba(76, 175, 80, 0.3)'}
-                                        keyboardType="numeric"
-                                        value={amount}
-                                        onChangeText={setAmount}
-                                        autoFocus
-                                    />
-                                </View>
+                            <Animated.View entering={FadeInDown.delay(100)}>
+                                <YStack alignItems="center" marginBottom={32}>
+                                    <Text fontSize={12} marginBottom={8} textTransform="uppercase" color={colors.textSecondary}>
+                                        Enter Amount
+                                    </Text>
+                                    <XStack alignItems="center" justifyContent="center">
+                                        <Text fontSize={32} fontWeight="700" marginRight={4} color={type === 'expense' ? '#FF5252' : '#4CAF50'}>
+                                            ₱
+                                        </Text>
+                                        <Input
+                                            unstyled
+                                            fontSize={48}
+                                            fontWeight="700"
+                                            minWidth={100}
+                                            textAlign="center"
+                                            paddingVertical={0}
+                                            color={(type === 'expense' ? colors.danger : colors.activeToggle) as any}
+                                            placeholder="0.00"
+                                            placeholderTextColor={type === 'expense' ? colors.dangerBg : 'rgba(76, 175, 80, 0.3)'}
+                                            keyboardType="numeric"
+                                            value={amount}
+                                            onChangeText={setAmount}
+                                            autoFocus
+                                        />
+                                    </XStack>
+                                </YStack>
                             </Animated.View>
 
-                            <Animated.View entering={FadeInUp.delay(200)} style={styles.formContainer}>
+                            <Animated.View entering={FadeInUp.delay(200)}>
+                                <YStack paddingHorizontal={24}>
 
-                                <View style={styles.inputGroup}>
-                                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Wallet / Account</Text>
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.accountList}>
-                                        {accounts.length === 0 ? (
-                                            <Text style={{ color: colors.textSecondary, fontStyle: 'italic' }}>No accounts found</Text>
-                                        ) : accounts.map((acc) => (
-                                            <TouchableOpacity
-                                                key={acc.id}
-                                                style={[styles.accountChip, { backgroundColor: selectedAccount === acc.id ? colors.text : colors.card, borderColor: colors.border }]}
-                                                onPress={() => setSelectedAccount(acc.id)}
-                                            >
-                                                <Feather name={acc.icon as any} size={16} color={selectedAccount === acc.id ? colors.background : colors.textSecondary} />
-                                                <Text style={[styles.accountText, { color: selectedAccount === acc.id ? colors.background : colors.textSecondary }]}>{acc.name}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </ScrollView>
-                                </View>
+                                    <YStack marginBottom={24}>
+                                        <Text fontSize={14} marginBottom={12} fontWeight="500" color={colors.textSecondary}>
+                                            Wallet / Account
+                                        </Text>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
+                                            {accounts.length === 0 ? (
+                                                <Text color={colors.textSecondary} fontStyle="italic">No accounts found</Text>
+                                            ) : accounts.map((acc) => (
+                                                <XStack
+                                                    key={acc.id}
+                                                    alignItems="center" paddingHorizontal={16} paddingVertical={10}
+                                                    borderRadius={20} borderWidth={1} gap={8}
+                                                    backgroundColor={selectedAccount === acc.id ? colors.text : colors.card}
+                                                    borderColor={colors.border}
+                                                    pressStyle={{ opacity: 0.7 }}
+                                                    onPress={() => setSelectedAccount(acc.id)}
+                                                >
+                                                    <Feather name={acc.icon as any} size={16} color={selectedAccount === acc.id ? colors.background : colors.textSecondary} />
+                                                    <Text fontSize={14} fontWeight="500" color={selectedAccount === acc.id ? colors.background : colors.textSecondary}>
+                                                        {acc.name}
+                                                    </Text>
+                                                </XStack>
+                                            ))}
+                                        </ScrollView>
+                                    </YStack>
 
-                                <View style={styles.inputGroup}>
-                                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Category</Text>
-                                    <View style={styles.categoryGrid}>
-                                        {CATEGORIES.map((cat) => (
-                                            <TouchableOpacity
-                                                key={cat.id}
-                                                style={[styles.categoryItem, selectedCategory === cat.id && styles.activeCategoryItem, { backgroundColor: selectedCategory === cat.id ? cat.color : colors.card }]}
-                                                onPress={() => setSelectedCategory(cat.id)}
-                                            >
-                                                <Feather name={cat.icon as any} size={18} color={selectedCategory === cat.id ? '#FFF' : cat.color} />
-                                                <Text style={[styles.categoryText, { color: selectedCategory === cat.id ? '#FFF' : colors.textSecondary }]}>{cat.name}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                </View>
+                                    <YStack marginBottom={24}>
+                                        <Text fontSize={14} marginBottom={12} fontWeight="500" color={colors.textSecondary}>
+                                            Category
+                                        </Text>
+                                        <XStack flexWrap="wrap" gap={8} justifyContent="space-between">
+                                            {CATEGORIES.map((cat) => (
+                                                <YStack
+                                                    key={cat.id}
+                                                    width="22.5%"
+                                                    paddingVertical={12}
+                                                    borderRadius={16}
+                                                    alignItems="center" justifyContent="center" gap={6}
+                                                    backgroundColor={selectedCategory === cat.id ? cat.color : colors.card}
+                                                    scale={selectedCategory === cat.id ? 1.05 : 1}
+                                                    pressStyle={{ opacity: 0.7 }}
+                                                    onPress={() => setSelectedCategory(cat.id)}
+                                                >
+                                                    <Feather name={cat.icon as any} size={20} color={selectedCategory === cat.id ? '#FFF' : cat.color} />
+                                                    <Text fontSize={11} fontWeight="600" color={selectedCategory === cat.id ? '#FFF' : colors.textSecondary}>
+                                                        {cat.name}
+                                                    </Text>
+                                                </YStack>
+                                            ))}
+                                        </XStack>
+                                    </YStack>
 
-                                <View style={styles.row}>
-                                    <View style={[styles.inputGroup, { flex: 1, marginRight: 12 }]}>
-                                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Date</Text>
-                                        <TouchableOpacity style={[styles.dateInput, { backgroundColor: colors.card }]}>
-                                            <Feather name="calendar" size={16} color={colors.textSecondary} />
-                                            <Text style={[styles.dateText, { color: colors.text }]}>{formatDate(date)}</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                    <View style={[styles.inputGroup, { flex: 1 }]}>
-                                        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Location</Text>
-                                        <View style={[styles.locationInputWrapper, { backgroundColor: colors.card }]}>
-                                            <TouchableOpacity onPress={() => setMapVisible(true)}>
-                                                <Feather name="map-pin" size={16} color={colors.activeToggle} />
-                                            </TouchableOpacity>
-                                            <TextInput
-                                                style={[styles.locationInput, { color: colors.text }]}
-                                                placeholder="Add location"
-                                                placeholderTextColor={colors.textSecondary}
-                                                value={location}
-                                                onChangeText={setLocation}
-                                            />
-                                        </View>
-                                    </View>
-                                </View>
+                                    <XStack marginBottom={24}>
+                                        <YStack flex={1} marginRight={12}>
+                                            <Text fontSize={14} marginBottom={12} fontWeight="500" color={colors.textSecondary}>
+                                                Date
+                                            </Text>
+                                            <XStack alignItems="center" height={56} paddingHorizontal={16} borderRadius={16} gap={8} backgroundColor={colors.card}>
+                                                <Feather name="calendar" size={16} color={colors.textSecondary} />
+                                                <Text fontSize={14} fontWeight="500" color={colors.text}>{formatDate(date)}</Text>
+                                            </XStack>
+                                        </YStack>
+                                        <YStack flex={1}>
+                                            <Text fontSize={14} marginBottom={12} fontWeight="500" color={colors.textSecondary}>
+                                                Location
+                                            </Text>
+                                            <XStack alignItems="center" height={56} paddingHorizontal={16} borderRadius={16} gap={8} backgroundColor={colors.card}>
+                                                <YStack pressStyle={{ opacity: 0.7 }} onPress={() => setMapVisible(true)}>
+                                                    <Feather name="map-pin" size={16} color={colors.activeToggle} />
+                                                </YStack>
+                                                <Input
+                                                    unstyled
+                                                    flex={1}
+                                                    fontSize={14}
+                                                    height="100%"
+                                                    paddingVertical={0}
+                                                    color={colors.text as any}
+                                                    placeholder="Add location"
+                                                    placeholderTextColor={colors.textSecondary}
+                                                    value={location}
+                                                    onChangeText={setLocation}
+                                                />
+                                            </XStack>
+                                        </YStack>
+                                    </XStack>
 
-                                <View style={styles.inputGroup}>
-                                    <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Note (Optional)</Text>
-                                    <TextInput
-                                        style={[styles.noteInput, { backgroundColor: colors.card, color: colors.text }]}
-                                        placeholder="e.g. Lunch with team"
-                                        placeholderTextColor={colors.textSecondary}
-                                        value={note}
-                                        onChangeText={setNote}
-                                    />
-                                </View>
+                                    <YStack marginBottom={24}>
+                                        <Text fontSize={14} marginBottom={12} fontWeight="500" color={colors.textSecondary}>
+                                            Note (Optional)
+                                        </Text>
+                                        <Input
+                                            borderRadius={16}
+                                            height={56}
+                                            paddingHorizontal={16}
+                                            paddingVertical={0}
+                                            fontSize={16}
+                                            backgroundColor={colors.card as any}
+                                            color={colors.text as any}
+                                            placeholder="e.g. Lunch with team"
+                                            placeholderTextColor={colors.textSecondary}
+                                            value={note}
+                                            onChangeText={setNote}
+                                        />
+                                    </YStack>
 
+                                </YStack>
                             </Animated.View>
 
-                            <Animated.View entering={SlideInDown.delay(500)} style={styles.footer}>
-                                <TouchableOpacity onPress={handleSave} activeOpacity={0.8}>
-                                    <LinearGradient
-                                        colors={type === 'income' ? ['#4CAF50', '#2E7D32'] : ['#FF5252', '#C62828']}
-                                        start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                                        style={styles.saveBtn}
-                                    >
-                                        <Text style={styles.saveBtnText}>Save Transaction</Text>
-                                        <Feather name="check" size={24} color="#FFF" />
-                                    </LinearGradient>
-                                </TouchableOpacity>
+                            <Animated.View entering={SlideInDown.delay(500)}>
+                                <YStack paddingHorizontal={24} marginTop={20} marginBottom={40}>
+                                    <YStack pressStyle={{ opacity: 0.8 }} onPress={handleSave}>
+                                        <LinearGradient
+                                            colors={type === 'income' ? ['#4CAF50', '#2E7D32'] : ['#FF5252', '#C62828']}
+                                            start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                                            style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 20, borderRadius: 24, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 8 }}
+                                        >
+                                            <Text fontSize={18} fontWeight="700" color="#FFF" letterSpacing={0.5}>
+                                                Save Transaction
+                                            </Text>
+                                            <Feather name="check" size={24} color="#FFF" />
+                                        </LinearGradient>
+                                    </YStack>
+                                </YStack>
                             </Animated.View>
 
-                        </View>
+                        </YStack>
 
                     </ScrollView>
                 </KeyboardAvoidingView>
@@ -315,13 +462,28 @@ export default function AddTransactionScreen() {
                     visible={mapVisible}
                     onRequestClose={() => setMapVisible(false)}
                 >
-                    <View style={[styles.mapModalContainer, { backgroundColor: colors.background }]}>
-                        <View style={[styles.mapHeader, { backgroundColor: colors.card }]}>
-                            <Text style={[styles.mapTitle, { color: colors.text }]}>Pick Location</Text>
-                            <TouchableOpacity onPress={() => setMapVisible(false)} style={styles.closeMapBtn}>
-                                <Feather name="x" size={24} color={colors.text} />
-                            </TouchableOpacity>
-                        </View>
+                    <YStack flex={1} backgroundColor={colors.background}>
+                        <XStack 
+                            paddingHorizontal={20} 
+                            paddingTop={insets.top + 4} 
+                            paddingBottom={12} 
+                            justifyContent="space-between" 
+                            alignItems="center" 
+                            zIndex={10} 
+                            backgroundColor={colors.card}
+                        >
+                            <Text fontSize={20} fontWeight="800" letterSpacing={-0.5} color={colors.text}>Locations</Text>
+                            <YStack 
+                                width={32} height={32} 
+                                borderRadius={16} 
+                                backgroundColor={colors.border} 
+                                alignItems="center" justifyContent="center"
+                                pressStyle={{ opacity: 0.7 }} 
+                                onPress={() => setMapVisible(false)}
+                            >
+                                <Feather name="x" size={18} color={colors.text} />
+                            </YStack>
+                        </XStack>
 
                         <WebView
                             ref={webViewRef}
@@ -332,57 +494,33 @@ export default function AddTransactionScreen() {
                             javaScriptEnabled={true}
                         />
 
-                        <TouchableOpacity style={styles.confirmLocationBtn} onPress={confirmMapSelection}>
-                            <Text style={styles.confirmLocationText}>Confirm Location</Text>
-                        </TouchableOpacity>
-                    </View>
+                        <YStack position="absolute" bottom={40} left={20} right={20} zIndex={100}>
+                            <YStack pressStyle={{ opacity: 0.8 }} onPress={confirmMapSelection}>
+                                <LinearGradient
+                                    colors={['#4CAF50', '#2E7D32']}
+                                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                                    style={{ 
+                                        paddingVertical: 18, 
+                                        borderRadius: 20, 
+                                        alignItems: 'center', 
+                                        justifyContent: 'center',
+                                        shadowColor: '#000',
+                                        shadowOffset: { width: 0, height: 10 },
+                                        shadowOpacity: 0.3,
+                                        shadowRadius: 15,
+                                        elevation: 10
+                                    }}
+                                >
+                                    <Text fontSize={17} fontWeight="700" color="#FFF" letterSpacing={0.5}>
+                                        Confirm Selection
+                                    </Text>
+                                </LinearGradient>
+                            </YStack>
+                        </YStack>
+                    </YStack>
                 </Modal>
 
-            </View>
+            </YStack>
         </TouchableWithoutFeedback>
     );
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1 },
-    scrollContent: { paddingBottom: 120 },
-    header: { alignItems: 'center', marginVertical: 20 },
-    headerTitle: { fontSize: 18, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 2 },
-    segmentedControl: { flexDirection: 'row', marginHorizontal: 24, borderRadius: 12, padding: 4, marginBottom: 24 },
-    segmentBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
-    activeSegment: { shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, elevation: 2 },
-    segmentText: { fontSize: 14, fontWeight: '600', color: 'rgba(128,128,128,0.5)' },
-    activeSegmentText: {},
-    amountCard: { alignItems: 'center', marginBottom: 32 },
-    amountLabel: { fontSize: 12, marginBottom: 8, textTransform: 'uppercase' },
-    amountRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-    currencySymbol: { fontSize: 32, fontWeight: '700', marginRight: 4 },
-    amountInput: { fontSize: 48, fontWeight: '700', minWidth: 100, textAlign: 'center' },
-    formContainer: { paddingHorizontal: 24 },
-    inputGroup: { marginBottom: 24 },
-    inputLabel: { fontSize: 14, marginBottom: 12, fontWeight: '500' },
-    row: { flexDirection: 'row' },
-    accountList: { gap: 12 },
-    accountChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, gap: 8 },
-    activeAccountChip: {},
-    accountText: { fontSize: 14, fontWeight: '500' },
-    activeAccountText: {},
-    categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-    categoryItem: { width: '22%', aspectRatio: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 4 },
-    activeCategoryItem: { transform: [{ scale: 1.05 }] },
-    categoryText: { fontSize: 10, fontWeight: '500' },
-    dateInput: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, gap: 8 },
-    dateText: { fontSize: 14, fontWeight: '500' },
-    locationInputWrapper: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, gap: 8 },
-    locationInput: { flex: 1, fontSize: 14, padding: 0 },
-    noteInput: { borderRadius: 16, padding: 16, fontSize: 16 },
-    footer: { paddingHorizontal: 24, marginTop: 20, marginBottom: 40 },
-    saveBtn: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: 20, borderRadius: 24, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 10, elevation: 8 },
-    saveBtnText: { fontSize: 18, fontWeight: '700', color: '#FFF', letterSpacing: 0.5 },
-    mapModalContainer: { flex: 1 },
-    mapHeader: { paddingHorizontal: 20, paddingVertical: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 },
-    mapTitle: { fontSize: 18, fontWeight: '700' },
-    closeMapBtn: { padding: 4 },
-    confirmLocationBtn: { position: 'absolute', bottom: 40, left: 20, right: 20, backgroundColor: '#4CAF50', paddingVertical: 16, borderRadius: 16, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5 },
-    confirmLocationText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
-});

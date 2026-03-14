@@ -1,4 +1,8 @@
+
+import "react-native-reanimated";
+
 import { ClerkProvider, useAuth } from "@clerk/clerk-expo";
+import Feather from "@expo/vector-icons/Feather";
 import {
   DarkTheme,
   DefaultTheme,
@@ -9,12 +13,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { LogBox } from "react-native";
-import "react-native-reanimated";
-import { TamaguiProvider } from "tamagui/native";
-
-// Suppress Zeego warning when not using native menus (requires dev client + zeego)
-LogBox.ignoreLogs(["Must call import '@tamagui/native/setup-zeego'"]);
+import { TamaguiProvider } from "tamagui";
 
 import { AccountProvider } from "../context/AccountContext";
 import { AppThemeProvider, useAppTheme } from "../context/ThemeContext";
@@ -22,7 +21,6 @@ import { TransactionProvider } from "../context/TransactionContext";
 import { tamaguiConfig } from "../tamagui.config";
 import { tokenCache } from "../utils/tokenCache";
 
-// Keep the native splash screen visible while we load fonts
 SplashScreen.preventAutoHideAsync();
 
 const CLERK_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY;
@@ -33,7 +31,6 @@ function MainContent() {
 
   useEffect(() => {
     if (!isLoaded) return;
-    // Auth protection logic can be added here when needed
   }, [isLoaded]);
 
   return (
@@ -47,8 +44,8 @@ function MainContent() {
                 options={{ headerShown: false, animation: "fade" }}
               />
               <Stack.Screen
-                name="onboarding"
                 options={{ headerShown: false, animation: "fade" }}
+                name="onboarding"
               />
               <Stack.Screen
                 name="login"
@@ -81,6 +78,7 @@ export default function RootLayout() {
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
     Inter: require("@tamagui/font-inter/otf/Inter-Medium.otf"),
     InterBold: require("@tamagui/font-inter/otf/Inter-Bold.otf"),
+    ...Feather.font,
   });
 
   useEffect(() => {

@@ -11,12 +11,8 @@ import {
     FlatList,
     Modal,
     ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View
 } from 'react-native';
+import { Input, Text, XStack, YStack } from 'tamagui';
 import { useAccounts } from '../context/AccountContext';
 import { useTransactions } from '../context/TransactionContext';
 
@@ -60,12 +56,12 @@ export default function SetupScreen() {
     const { addAccount } = useAccounts();
 
     const [currentStep, setCurrentStep] = useState(0);
-    const [currency, setCurrency] = useState(CURRENCIES[1]); // Default PHP
+    const [currency, setCurrency] = useState(CURRENCIES[1]);
     const [cashAmount, setCashAmount] = useState('');
     const [showCurrencyModal, setShowCurrencyModal] = useState(false);
     const [currencySearch, setCurrencySearch] = useState('');
     const [biometricsEnabled, setBiometricsEnabled] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false); // To prevent double taps
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const fadeAnim = useRef(new Animated.Value(1)).current;
     const slideAnim = useRef(new Animated.Value(0)).current;
@@ -107,15 +103,12 @@ export default function SetupScreen() {
         if (currentStep < TOTAL_STEPS - 1) {
             animateTransition(currentStep + 1);
         } else {
-            // Setup complete → Finish Logic
             if (isSubmitting) return;
             setIsSubmitting(true);
 
             try {
-                // 1. Process Data
                 const initialAmount = parseFloat(cashAmount.replace(/,/g, '')) || 0;
 
-                // 2. Add Transaction (Initial Balance)
                 if (initialAmount > 0) {
                     await addTransaction({
                         id: Date.now().toString(),
@@ -129,7 +122,6 @@ export default function SetupScreen() {
                     });
                 }
 
-                // 3. Add Account (Cash Wallet)
                 await addAccount({
                     name: 'Cash Wallet',
                     balance: initialAmount,
@@ -140,7 +132,6 @@ export default function SetupScreen() {
                     theme: 'dark'
                 });
 
-                // 4. Navigate
                 router.replace('/(tabs)');
 
             } catch (error) {
@@ -162,212 +153,285 @@ export default function SetupScreen() {
     };
 
     return (
-        <View style={styles.container}>
+        <YStack flex={1} backgroundColor="#161616">
             <StatusBar style="light" />
 
             <ScrollView
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 24 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
                 bounces={false}
             >
                 {/* ── Header ── */}
-                <View style={styles.header}>
-                    <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+                <XStack alignItems="center" justifyContent="space-between" paddingTop={height * 0.06} marginBottom={24}>
+                    <YStack
+                        width={40} height={40} borderRadius={20}
+                        backgroundColor="rgba(255, 255, 255, 0.1)"
+                        alignItems="center" justifyContent="center"
+                        pressStyle={{ opacity: 0.7 }}
+                        onPress={handleBack}
+                    >
                         <Feather name="arrow-left" size={22} color="#FFFFFF" />
-                    </TouchableOpacity>
+                    </YStack>
 
                     {/* Dot Indicators */}
-                    <View style={styles.dotsRow}>
+                    <XStack alignItems="center" gap={8}>
                         {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-                            <View
+                            <YStack
                                 key={i}
-                                style={[
-                                    styles.dot,
-                                    i === currentStep && styles.dotActive,
-                                ]}
+                                width={32}
+                                height={6}
+                                borderRadius={3}
+                                backgroundColor={i === currentStep ? '#FFFFFF' : 'rgba(255, 255, 255, 0.15)'}
                             />
                         ))}
-                    </View>
+                    </XStack>
 
-                    <View style={{ width: 40 }} />
-                </View>
+                    <YStack width={40} />
+                </XStack>
 
                 {/* ── Step Content ── */}
                 <Animated.View
-                    style={[
-                        styles.content,
-                        {
-                            opacity: fadeAnim,
-                            transform: [{ translateX: slideAnim }],
-                        },
-                    ]}
+                    style={{
+                        flex: 1,
+                        opacity: fadeAnim,
+                        transform: [{ translateX: slideAnim }],
+                    }}
                 >
                     {/* ═══ STEP 1: Currency ═══ */}
                     {currentStep === 0 && (
-                        <View style={styles.stepContainer}>
-                            <Text style={styles.title}>Select the primary{'\n'}Currency!</Text>
-                            <Text style={styles.description}>
+                        <YStack flex={1}>
+                            <Text fontSize={28} fontWeight="700" color="#FFFFFF" marginBottom={10} lineHeight={36}>
+                                Select the primary{'\n'}Currency!
+                            </Text>
+                            <Text fontSize={14} color="rgba(255, 255, 255, 0.45)" lineHeight={22} marginBottom={28}>
                                 Select the currency you wish to use to calculate all of your transactions in one.
                             </Text>
 
-                            <TouchableOpacity
-                                style={styles.pickerWrapper}
+                            <XStack
+                                alignItems="center"
+                                borderRadius={12}
+                                borderWidth={1}
+                                borderColor="rgba(255, 255, 255, 0.2)"
+                                height={52}
+                                paddingHorizontal={16}
+                                pressStyle={{ opacity: 0.7 }}
                                 onPress={() => setShowCurrencyModal(true)}
                             >
-                                <Text style={styles.pickerFlag}>{currency.flag}</Text>
-                                <Text style={styles.pickerText}>{currency.name}</Text>
-                                <View style={{ flex: 1 }} />
+                                <Text fontSize={24} marginRight={12}>{currency.flag}</Text>
+                                <Text fontSize={15} color="#FFFFFF">{currency.name}</Text>
+                                <YStack flex={1} />
                                 <Feather name="chevron-down" size={20} color="rgba(255,255,255,0.5)" />
-                            </TouchableOpacity>
-                        </View>
+                            </XStack>
+                        </YStack>
                     )}
 
                     {/* ═══ STEP 2: Cash Amount ═══ */}
                     {currentStep === 1 && (
-                        <View style={styles.stepContainer}>
-                            <Text style={styles.title}>What's your total{'\n'}amount of cash?</Text>
-                            <Text style={styles.description}>
+                        <YStack flex={1}>
+                            <Text fontSize={28} fontWeight="700" color="#FFFFFF" marginBottom={10} lineHeight={36}>
+                                What&apos;s your total{'\n'}amount of cash?
+                            </Text>
+                            <Text fontSize={14} color="rgba(255, 255, 255, 0.45)" lineHeight={22} marginBottom={28}>
                                 Enter your current cash balance so we can help you start tracking your finances right away.
                             </Text>
 
-                            <View style={styles.amountContainer}>
-                                <Text style={styles.currencySymbol}>{currency.symbol}</Text>
-                                <TextInput
-                                    style={styles.amountInput}
+                            <XStack alignItems="center" justifyContent="center" marginBottom={28}>
+                                <Text fontSize={48} fontWeight="700" color="#FFFFFF" marginRight={4}>
+                                    {currency.symbol}
+                                </Text>
+                                <Input
+                                    unstyled
+                                    fontSize={48}
+                                    fontWeight="700"
+                                    color="#FFFFFF"
+                                    minWidth={120}
+                                    textAlign="center"
+                                    paddingVertical={0}
                                     placeholder="0.00"
                                     placeholderTextColor="rgba(255,255,255,0.2)"
                                     value={cashAmount}
                                     onChangeText={setCashAmount}
                                     keyboardType="decimal-pad"
                                 />
-                            </View>
+                            </XStack>
 
-                            <View style={styles.amountChips}>
+                            <XStack flexWrap="wrap" gap={10} justifyContent="center">
                                 {['100', '500', '1,000', '5,000', '10,000'].map((amt) => (
-                                    <TouchableOpacity
+                                    <YStack
                                         key={amt}
-                                        style={styles.chip}
+                                        paddingHorizontal={16}
+                                        paddingVertical={10}
+                                        borderRadius={20}
+                                        borderWidth={1}
+                                        borderColor="rgba(255, 255, 255, 0.15)"
+                                        backgroundColor="rgba(255, 255, 255, 0.05)"
+                                        pressStyle={{ opacity: 0.7, backgroundColor: 'rgba(255,255,255,0.1)' }}
                                         onPress={() => setCashAmount(amt.replace(',', ''))}
                                     >
-                                        <Text style={styles.chipText}>{currency.symbol}{amt}</Text>
-                                    </TouchableOpacity>
+                                        <Text color="#FFFFFF" fontSize={13} fontWeight="600">
+                                            {currency.symbol}{amt}
+                                        </Text>
+                                    </YStack>
                                 ))}
-                            </View>
-                        </View>
+                            </XStack>
+                        </YStack>
                     )}
 
                     {/* ═══ STEP 3: Biometrics ═══ */}
                     {currentStep === 2 && (
-                        <View style={styles.stepContainer}>
-                            <Text style={styles.title}>Enable Biometrics</Text>
-                            <Text style={styles.description}>
+                        <YStack flex={1}>
+                            <Text fontSize={28} fontWeight="700" color="#FFFFFF" marginBottom={10}>
+                                Enable Biometrics
+                            </Text>
+                            <Text fontSize={14} color="rgba(255, 255, 255, 0.45)" lineHeight={22} marginBottom={28}>
                                 Secure your account with fingerprint or face recognition for quick and safe access.
                             </Text>
 
-                            <View style={styles.biometricsCard}>
-                                <Text style={styles.biometricsEmoji}>
+                            <YStack
+                                backgroundColor="rgba(255, 255, 255, 0.05)"
+                                borderRadius={20}
+                                padding={28}
+                                alignItems="center"
+                                marginBottom={24}
+                                borderWidth={1}
+                                borderColor="rgba(255, 255, 255, 0.08)"
+                            >
+                                <Text fontSize={56} marginBottom={16}>
                                     {biometricsEnabled ? '🔓' : '🔒'}
                                 </Text>
-                                <Text style={styles.biometricsTitle}>
+                                <Text fontSize={18} fontWeight="700" color="#FFFFFF" marginBottom={6}>
                                     {biometricsEnabled ? 'Biometrics Enabled' : 'Tap to Enable'}
                                 </Text>
-                                <Text style={styles.biometricsSubtitle}>
+                                <Text fontSize={13} color="rgba(255, 255, 255, 0.45)" marginBottom={20} textAlign="center">
                                     {biometricsEnabled
                                         ? 'Your account is secured with biometrics'
                                         : 'Use fingerprint or face ID to login'}
                                 </Text>
 
-                                <TouchableOpacity
-                                    style={[
-                                        styles.biometricsToggle,
-                                        biometricsEnabled && styles.biometricsToggleActive,
-                                    ]}
+                                <XStack
+                                    width={56} height={32} borderRadius={16}
+                                    backgroundColor={biometricsEnabled ? '#4CAF50' : 'rgba(255, 255, 255, 0.15)'}
+                                    padding={3}
+                                    justifyContent="center"
+                                    pressStyle={{ opacity: 0.8 }}
                                     onPress={() => setBiometricsEnabled(!biometricsEnabled)}
-                                    activeOpacity={0.8}
                                 >
-                                    <View
-                                        style={[
-                                            styles.toggleThumb,
-                                            biometricsEnabled && styles.toggleThumbActive,
-                                        ]}
+                                    <YStack
+                                        width={26} height={26} borderRadius={13}
+                                        backgroundColor="#FFFFFF"
+                                        alignSelf={biometricsEnabled ? 'flex-end' : 'flex-start'}
                                     />
-                                </TouchableOpacity>
-                            </View>
+                                </XStack>
+                            </YStack>
 
-                            <View style={styles.biometricsInfo}>
-                                <View style={styles.infoRow}>
+                            <YStack gap={14}>
+                                <XStack alignItems="center">
                                     <Feather name="shield" size={18} color="rgba(255,255,255,0.5)" style={{ marginRight: 12 }} />
-                                    <Text style={styles.infoText}>Your biometric data stays on your device</Text>
-                                </View>
-                                <View style={styles.infoRow}>
+                                    <Text fontSize={14} color="rgba(255, 255, 255, 0.5)">
+                                        Your biometric data stays on your device
+                                    </Text>
+                                </XStack>
+                                <XStack alignItems="center">
                                     <Feather name="zap" size={18} color="rgba(255,255,255,0.5)" style={{ marginRight: 12 }} />
-                                    <Text style={styles.infoText}>Instant login without typing passwords</Text>
-                                </View>
-                                <View style={styles.infoRow}>
+                                    <Text fontSize={14} color="rgba(255, 255, 255, 0.5)">
+                                        Instant login without typing passwords
+                                    </Text>
+                                </XStack>
+                                <XStack alignItems="center">
                                     <Feather name="lock" size={18} color="rgba(255,255,255,0.5)" style={{ marginRight: 12 }} />
-                                    <Text style={styles.infoText}>Bank-level security for your finances</Text>
-                                </View>
-                            </View>
-                        </View>
+                                    <Text fontSize={14} color="rgba(255, 255, 255, 0.5)">
+                                        Bank-level security for your finances
+                                    </Text>
+                                </XStack>
+                            </YStack>
+                        </YStack>
                     )}
                 </Animated.View>
             </ScrollView>
 
             {/* ── Bottom Button ── */}
-            <View style={styles.bottomButton}>
-                <TouchableOpacity
-                    style={[styles.nextButton, isSubmitting && { opacity: 0.7 }]}
+            <YStack paddingHorizontal={24} paddingBottom={36} paddingTop={12}>
+                <YStack
+                    backgroundColor="#FFFFFF"
+                    borderRadius={12}
+                    height={52}
+                    alignItems="center"
+                    justifyContent="center"
                     onPress={handleNext}
-                    activeOpacity={0.85}
+                    pressStyle={{ opacity: 0.85 }}
                     disabled={isSubmitting}
+                    opacity={isSubmitting ? 0.7 : 1}
                 >
                     {isSubmitting ? (
                         <ActivityIndicator color="#161616" />
                     ) : (
-                        <Text style={styles.nextButtonText}>
+                        <Text fontSize={16} fontWeight="700" color="#161616">
                             {currentStep === TOTAL_STEPS - 1 ? 'Get Started' : 'Next'}
                         </Text>
                     )}
-                </TouchableOpacity>
+                </YStack>
 
                 {currentStep === 2 && !biometricsEnabled && (
-                    <TouchableOpacity
-                        style={styles.skipBiometrics}
+                    <YStack
+                        alignItems="center"
+                        paddingTop={14}
+                        pressStyle={{ opacity: 0.7 }}
                         onPress={() => router.replace('/(tabs)')}
                     >
-                        <Text style={styles.skipBiometricsText}>Skip for now</Text>
-                    </TouchableOpacity>
+                        <Text fontSize={14} color="rgba(255, 255, 255, 0.45)" fontWeight="600">
+                            Skip for now
+                        </Text>
+                    </YStack>
                 )}
-            </View>
+            </YStack>
 
-            {/* ── Currency Picker Modal (kept same as before) ── */}
+            {/* ── Currency Picker Modal ── */}
             <Modal
                 visible={showCurrencyModal}
                 animationType="slide"
                 transparent={true}
                 onRequestClose={() => setShowCurrencyModal(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Select Currency</Text>
-                            <TouchableOpacity onPress={() => { setShowCurrencyModal(false); setCurrencySearch(''); }}>
+                <YStack flex={1} backgroundColor="rgba(0, 0, 0, 0.6)" justifyContent="flex-end">
+                    <YStack
+                        backgroundColor="#1e1e1e"
+                        borderTopLeftRadius={24}
+                        borderTopRightRadius={24}
+                        maxHeight={height * 0.75}
+                        paddingTop={20}
+                        paddingHorizontal={24}
+                        paddingBottom={40}
+                    >
+                        <XStack alignItems="center" justifyContent="space-between" marginBottom={16}>
+                            <Text fontSize={20} fontWeight="700" color="#FFFFFF">Select Currency</Text>
+                            <YStack pressStyle={{ opacity: 0.7 }} onPress={() => { setShowCurrencyModal(false); setCurrencySearch(''); }}>
                                 <Feather name="x" size={22} color="rgba(255,255,255,0.5)" />
-                            </TouchableOpacity>
-                        </View>
+                            </YStack>
+                        </XStack>
 
-                        <View style={styles.modalSearchWrapper}>
+                        <XStack
+                            alignItems="center"
+                            backgroundColor="rgba(255, 255, 255, 0.08)"
+                            borderRadius={12}
+                            height={46}
+                            paddingHorizontal={14}
+                            marginBottom={12}
+                        >
                             <Feather name="search" size={18} color="rgba(255,255,255,0.35)" style={{ marginRight: 10 }} />
-                            <TextInput
-                                style={styles.modalSearchInput}
+                            <Input
+                                unstyled
+                                flex={1}
+                                color="#FFFFFF"
+                                fontSize={15}
+                                height="100%"
                                 placeholder="Search currency..."
                                 placeholderTextColor="rgba(255,255,255,0.35)"
                                 value={currencySearch}
                                 onChangeText={setCurrencySearch}
                                 autoCorrect={false}
                             />
-                        </View>
+                        </XStack>
 
                         <FlatList
                             data={CURRENCIES.filter(c =>
@@ -377,341 +441,37 @@ export default function SetupScreen() {
                             keyExtractor={(item) => item.name}
                             showsVerticalScrollIndicator={false}
                             renderItem={({ item }) => (
-                                <TouchableOpacity
-                                    style={[
-                                        styles.currencyItem,
-                                        currency.name === item.name && styles.currencyItemActive,
-                                    ]}
+                                <XStack
+                                    alignItems="center"
+                                    paddingVertical={14}
+                                    paddingHorizontal={currency.name === item.name ? 8 : 4}
+                                    borderBottomWidth={1}
+                                    borderBottomColor="rgba(255, 255, 255, 0.06)"
+                                    backgroundColor={currency.name === item.name ? 'rgba(255, 255, 255, 0.06)' : 'transparent'}
+                                    borderRadius={currency.name === item.name ? 10 : 0}
+                                    marginHorizontal={currency.name === item.name ? -4 : 0}
+                                    pressStyle={{ opacity: 0.7 }}
                                     onPress={() => {
                                         setCurrency(item);
                                         setShowCurrencyModal(false);
                                         setCurrencySearch('');
                                     }}
                                 >
-                                    <Text style={styles.currencyItemFlag}>{item.flag}</Text>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={styles.currencyItemCode}>{item.name}</Text>
-                                        <Text style={styles.currencyItemLabel}>{item.label}</Text>
-                                    </View>
-                                    <Text style={styles.currencyItemSymbol}>{item.symbol}</Text>
+                                    <Text fontSize={24} marginRight={14}>{item.flag}</Text>
+                                    <YStack flex={1}>
+                                        <Text fontSize={16} fontWeight="600" color="#FFFFFF">{item.name}</Text>
+                                        <Text fontSize={12} color="rgba(255, 255, 255, 0.4)" marginTop={2}>{item.label}</Text>
+                                    </YStack>
+                                    <Text fontSize={16} color="rgba(255, 255, 255, 0.4)" marginRight={12}>{item.symbol}</Text>
                                     {currency.name === item.name && (
-                                        <Feather name="check" size={18} color="#4CAF50" style={{ fontWeight: '700' }} />
+                                        <Feather name="check" size={18} color="#4CAF50" />
                                     )}
-                                </TouchableOpacity>
+                                </XStack>
                             )}
                         />
-                    </View>
-                </View>
+                    </YStack>
+                </YStack>
             </Modal>
-        </View>
+        </YStack>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#161616',
-    },
-    scrollContent: {
-        flexGrow: 1,
-        paddingHorizontal: 24,
-    },
-
-    /* ── Header ── */
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingTop: height * 0.06,
-        marginBottom: 24,
-    },
-    backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    backArrow: {
-        fontSize: 20,
-        color: '#FFFFFF',
-    },
-    dotsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    dot: {
-        width: 32,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    },
-    dotActive: {
-        backgroundColor: '#FFFFFF',
-    },
-
-    /* ── Content ── */
-    content: {
-        flex: 1,
-    },
-    stepContainer: {
-        flex: 1,
-    },
-    title: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: '#FFFFFF',
-        marginBottom: 10,
-        lineHeight: 36,
-    },
-    description: {
-        fontSize: 14,
-        color: 'rgba(255, 255, 255, 0.45)',
-        lineHeight: 22,
-        marginBottom: 28,
-    },
-
-    /* ── Currency Picker ── */
-    pickerWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-        height: 52,
-        paddingHorizontal: 16,
-    },
-    pickerFlag: {
-        fontSize: 24,
-        marginRight: 12,
-    },
-    pickerText: {
-        fontSize: 15,
-        color: '#FFFFFF',
-    },
-    chevronIcon: {
-        fontSize: 22,
-        color: 'rgba(255, 255, 255, 0.5)',
-    },
-
-    /* ── Cash Amount ── */
-    amountContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 28,
-    },
-    currencySymbol: {
-        fontSize: 48,
-        fontWeight: '700',
-        color: '#FFFFFF',
-        marginRight: 4,
-    },
-    amountInput: {
-        fontSize: 48,
-        fontWeight: '700',
-        color: '#FFFFFF',
-        minWidth: 120,
-        textAlign: 'center',
-    },
-    amountChips: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 10,
-        justifyContent: 'center',
-    },
-    chip: {
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.15)',
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    },
-    chipText: {
-        color: '#FFFFFF',
-        fontSize: 13,
-        fontWeight: '600',
-    },
-
-    /* ── Biometrics ── */
-    biometricsCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: 20,
-        padding: 28,
-        alignItems: 'center',
-        marginBottom: 24,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.08)',
-    },
-    biometricsEmoji: {
-        fontSize: 56,
-        marginBottom: 16,
-    },
-    biometricsTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#FFFFFF',
-        marginBottom: 6,
-    },
-    biometricsSubtitle: {
-        fontSize: 13,
-        color: 'rgba(255, 255, 255, 0.45)',
-        marginBottom: 20,
-        textAlign: 'center',
-    },
-    biometricsToggle: {
-        width: 56,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: 'rgba(255, 255, 255, 0.15)',
-        padding: 3,
-        justifyContent: 'center',
-    },
-    biometricsToggleActive: {
-        backgroundColor: '#4CAF50',
-    },
-    toggleThumb: {
-        width: 26,
-        height: 26,
-        borderRadius: 13,
-        backgroundColor: '#FFFFFF',
-    },
-    toggleThumbActive: {
-        alignSelf: 'flex-end',
-    },
-    biometricsInfo: {
-        gap: 14,
-    },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    infoIcon: {
-        fontSize: 18,
-        marginRight: 12,
-    },
-    infoText: {
-        fontSize: 14,
-        color: 'rgba(255, 255, 255, 0.5)',
-    },
-
-    /* ── Bottom Button ── */
-    bottomButton: {
-        paddingHorizontal: 24,
-        paddingBottom: 36,
-        paddingTop: 12,
-    },
-    nextButton: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-        height: 52,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    nextButtonText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#161616',
-    },
-    skipBiometrics: {
-        alignItems: 'center',
-        paddingTop: 14,
-    },
-    skipBiometricsText: {
-        fontSize: 14,
-        color: 'rgba(255, 255, 255, 0.45)',
-        fontWeight: '600',
-    },
-
-    /* ── Currency Modal ── */
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
-        justifyContent: 'flex-end',
-    },
-    modalContainer: {
-        backgroundColor: '#1e1e1e',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        maxHeight: height * 0.75,
-        paddingTop: 20,
-        paddingHorizontal: 24,
-        paddingBottom: 40,
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 16,
-    },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#FFFFFF',
-    },
-    modalClose: {
-        fontSize: 18,
-        color: 'rgba(255, 255, 255, 0.5)',
-        padding: 4,
-    },
-    modalSearchWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 12,
-        height: 46,
-        paddingHorizontal: 14,
-        marginBottom: 12,
-    },
-    searchIcon: {
-        fontSize: 16,
-        marginRight: 10,
-    },
-    modalSearchInput: {
-        flex: 1,
-        color: '#FFFFFF',
-        fontSize: 15,
-        height: '100%',
-    },
-    currencyItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: 4,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(255, 255, 255, 0.06)',
-    },
-    currencyItemActive: {
-        backgroundColor: 'rgba(255, 255, 255, 0.06)',
-        borderRadius: 10,
-        marginHorizontal: -4,
-        paddingHorizontal: 8,
-    },
-    currencyItemFlag: {
-        fontSize: 24,
-        marginRight: 14,
-    },
-    currencyItemCode: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#FFFFFF',
-    },
-    currencyItemLabel: {
-        fontSize: 12,
-        color: 'rgba(255, 255, 255, 0.4)',
-        marginTop: 2,
-    },
-    currencyItemSymbol: {
-        fontSize: 16,
-        color: 'rgba(255, 255, 255, 0.4)',
-        marginRight: 12,
-    },
-    currencyItemCheck: {
-        fontSize: 18,
-        color: '#4CAF50',
-        fontWeight: '700',
-    },
-});

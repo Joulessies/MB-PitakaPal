@@ -11,12 +11,8 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
 } from 'react-native';
+import { Input, Separator, SizableText, Text, XStack, YStack } from 'tamagui';
 
 const { width, height } = Dimensions.get('window');
 
@@ -29,16 +25,13 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
-    // Animations
     const contentOpacity = useRef(new Animated.Value(0)).current;
 
-    // Sign out on mount to clear any existing stale sessions
     useEffect(() => {
         const cleanup = async () => {
             try {
                 await signOut();
-            } catch (err) {
-                // ignore
+            } catch (_err) {
             }
         };
         cleanup();
@@ -95,11 +88,7 @@ export default function LoginScreen() {
                 password,
             });
 
-            // This is an important step,
-            // This indicates the user is signed in
             await setActive({ session: completeSignIn.createdSessionId });
-
-            // Navigate to main tabs
             router.replace('/(tabs)');
         } catch (err: any) {
             console.error(JSON.stringify(err, null, 2));
@@ -110,65 +99,91 @@ export default function LoginScreen() {
     };
 
     return (
-        <View style={styles.container}>
+        <YStack flex={1} backgroundColor="#161616">
             <StatusBar style="light" />
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.keyboardView}
+                style={{ flex: 1 }}
             >
                 <ScrollView
-                    contentContainerStyle={styles.scrollContent}
+                    contentContainerStyle={{ flexGrow: 1 }}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                     bounces={false}
                 >
                     {/* ── Top Content ── */}
                     <Animated.View
-                        style={[
-                            styles.topContent,
-                            {
-                                opacity: contentOpacity,
-                                transform: [{ translateY: contentTranslateY }],
-                            },
-                        ]}
+                        style={{
+                            paddingTop: height * 0.08,
+                            alignItems: 'center',
+                            opacity: contentOpacity,
+                            transform: [{ translateY: contentTranslateY }],
+                        }}
                     >
                         {/* Logo + App Name */}
-                        <View style={styles.logoRow}>
+                        <XStack alignItems="center" marginBottom={20}>
                             <Image
                                 source={require('../assets/images/8.png')}
-                                style={styles.logoSmall}
+                                style={{ width: 48, height: 48, marginRight: 12 }}
                                 contentFit="contain"
                             />
-                            <Text style={styles.logoText}>PitakaPal</Text>
-                        </View>
+                            <Text fontSize={28} fontWeight="700" color="#FFFFFF" letterSpacing={0.5}>
+                                PitakaPal
+                            </Text>
+                        </XStack>
 
                         {/* Subtitle */}
-                        <Text style={styles.subtitle}>
-                            Let's resolve your{'\n'}financial issues
+                        <Text
+                            fontSize={26}
+                            fontWeight="600"
+                            color="#FFFFFF"
+                            textAlign="center"
+                            lineHeight={36}
+                            marginBottom={24}
+                        >
+                            Let&apos;s resolve your{'\n'}financial issues
                         </Text>
 
                         {/* Large Wallet Image */}
-                        <View style={styles.imageSection}>
+                        <YStack alignItems="center" justifyContent="center" marginBottom={-30} zIndex={2}>
                             <Image
                                 source={require('../assets/images/8.png')}
-                                style={styles.walletImage}
+                                style={{ width: width * 0.5, height: width * 0.38 }}
                                 contentFit="contain"
                             />
-                        </View>
+                        </YStack>
                     </Animated.View>
 
                     {/* ── Bottom Sheet ── */}
                     <Animated.View
-                        style={[
-                            styles.bottomSheet,
-                            { transform: [{ translateY: sheetTranslateY }] },
-                        ]}
+                        style={{
+                            flex: 1,
+                            backgroundColor: '#1e1e1e',
+                            borderTopLeftRadius: 28,
+                            borderTopRightRadius: 28,
+                            paddingHorizontal: 28,
+                            paddingTop: 44,
+                            paddingBottom: 60,
+                            zIndex: 1,
+                            transform: [{ translateY: sheetTranslateY }],
+                        }}
                     >
                         {/* Email */}
-                        <View style={styles.inputWrapper}>
-                            <TextInput
-                                style={styles.input}
+                        <YStack
+                            borderRadius={10}
+                            borderWidth={1}
+                            borderColor="rgba(255, 255, 255, 0.2)"
+                            marginBottom={14}
+                            height={50}
+                            justifyContent="center"
+                            paddingHorizontal={16}
+                        >
+                            <Input
+                                unstyled
+                                color="#FFFFFF"
+                                fontSize={15}
+                                height="100%"
                                 placeholder="Email"
                                 placeholderTextColor="rgba(255,255,255,0.4)"
                                 value={email}
@@ -177,228 +192,121 @@ export default function LoginScreen() {
                                 autoCapitalize="none"
                                 autoCorrect={false}
                             />
-                        </View>
+                        </YStack>
 
                         {/* Password */}
-                        <View style={styles.inputWrapper}>
-                            <TextInput
-                                style={styles.input}
+                        <YStack
+                            borderRadius={10}
+                            borderWidth={1}
+                            borderColor="rgba(255, 255, 255, 0.2)"
+                            marginBottom={14}
+                            height={50}
+                            justifyContent="center"
+                            paddingHorizontal={16}
+                        >
+                            <Input
+                                unstyled
+                                color="#FFFFFF"
+                                fontSize={15}
+                                height="100%"
                                 placeholder="Password"
                                 placeholderTextColor="rgba(255,255,255,0.4)"
                                 value={password}
                                 onChangeText={setPassword}
                                 secureTextEntry
                             />
-                        </View>
+                        </YStack>
 
                         {/* Forgot Password */}
-                        <TouchableOpacity style={styles.forgotButton}>
-                            <Text style={styles.forgotText}>Forgot your password?</Text>
-                        </TouchableOpacity>
+                        <XStack alignSelf="flex-start" marginBottom={20} marginTop={2}>
+                            <SizableText
+                                fontSize={13}
+                                color="rgba(255, 255, 255, 0.45)"
+                                pressStyle={{ opacity: 0.7 }}
+                            >
+                                Forgot your password?
+                            </SizableText>
+                        </XStack>
 
                         {/* Log In Button */}
                         <Animated.View style={{ transform: [{ scale: buttonScale }] }}>
-                            <TouchableOpacity
-                                style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
+                            <YStack
+                                backgroundColor="#FFFFFF"
+                                borderRadius={12}
+                                height={50}
+                                alignItems="center"
+                                justifyContent="center"
                                 onPress={handleLogin}
-                                activeOpacity={0.85}
                                 disabled={isLoading}
+                                opacity={isLoading ? 0.6 : 1}
+                                pressStyle={{ opacity: 0.85 }}
                             >
-                                <Text style={styles.loginButtonText}>
+                                <Text fontSize={16} fontWeight="700" color="#161616">
                                     {isLoading ? 'Logging in...' : 'Log In'}
                                 </Text>
-                            </TouchableOpacity>
+                            </YStack>
                         </Animated.View>
 
                         {/* Sign Up */}
-                        <View style={styles.signupRow}>
-                            <Text style={styles.signupText}>Need to create an account? </Text>
-                            <TouchableOpacity onPress={() => router.push('/register')}>
-                                <Text style={styles.signupLink}>Sign Up</Text>
-                            </TouchableOpacity>
-                        </View>
+                        <XStack justifyContent="center" marginBottom={20} marginTop={16}>
+                            <Text fontSize={13} color="rgba(255, 255, 255, 0.4)">
+                                Need to create an account?{' '}
+                            </Text>
+                            <Text
+                                fontSize={13}
+                                color="rgba(255, 255, 255, 0.4)"
+                                textDecorationLine="underline"
+                                pressStyle={{ opacity: 0.7 }}
+                                onPress={() => router.push('/register')}
+                            >
+                                Sign Up
+                            </Text>
+                        </XStack>
 
                         {/* Divider */}
-                        <View style={styles.divider}>
-                            <View style={styles.dividerLine} />
-                            <Text style={styles.dividerText}>Or</Text>
-                            <View style={styles.dividerLine} />
-                        </View>
+                        <XStack alignItems="center" marginBottom={20}>
+                            <Separator flex={1} borderColor="rgba(255, 255, 255, 0.1)" />
+                            <Text fontSize={13} color="rgba(255, 255, 255, 0.35)" marginHorizontal={16}>
+                                Or
+                            </Text>
+                            <Separator flex={1} borderColor="rgba(255, 255, 255, 0.1)" />
+                        </XStack>
 
                         {/* Google */}
-                        <TouchableOpacity style={styles.socialButton}>
+                        <XStack
+                            pressStyle={{ opacity: 0.7 }}
+                            alignItems="center"
+                            justifyContent="center"
+                            borderRadius={12}
+                            height={50}
+                            marginBottom={12}
+                            borderWidth={1}
+                            borderColor="rgba(255, 255, 255, 0.2)"
+                        >
                             <Feather name="chrome" size={20} color="#4285F4" style={{ marginRight: 10 }} />
-                            <Text style={styles.socialButtonText}>Log In using Google</Text>
-                        </TouchableOpacity>
+                            <Text fontSize={15} color="#FFFFFF" fontWeight="500">
+                                Log In using Google
+                            </Text>
+                        </XStack>
 
                         {/* GitHub */}
-                        <TouchableOpacity style={[styles.socialButton, { marginBottom: 0 }]}>
+                        <XStack
+                            pressStyle={{ opacity: 0.7 }}
+                            alignItems="center"
+                            justifyContent="center"
+                            borderRadius={12}
+                            height={50}
+                            borderWidth={1}
+                            borderColor="rgba(255, 255, 255, 0.2)"
+                        >
                             <Feather name="github" size={20} color="#FFFFFF" style={{ marginRight: 10 }} />
-                            <Text style={styles.socialButtonText}>Login Using GitHub</Text>
-                        </TouchableOpacity>
+                            <Text fontSize={15} color="#FFFFFF" fontWeight="500">
+                                Login Using GitHub
+                            </Text>
+                        </XStack>
                     </Animated.View>
                 </ScrollView>
             </KeyboardAvoidingView>
-        </View>
+        </YStack>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#161616',
-    },
-    keyboardView: {
-        flex: 1,
-    },
-    scrollContent: {
-        flexGrow: 1,
-    },
-
-    /* ── Top Content ── */
-    topContent: {
-        paddingTop: height * 0.08,
-        alignItems: 'center',
-    },
-    logoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    logoSmall: {
-        width: 48,
-        height: 48,
-        marginRight: 12,
-    },
-    logoText: {
-        fontSize: 28,
-        fontWeight: '700',
-        color: '#FFFFFF',
-        letterSpacing: 0.5,
-    },
-    subtitle: {
-        fontSize: 26,
-        fontWeight: '600',
-        color: '#FFFFFF',
-        textAlign: 'center',
-        lineHeight: 36,
-        marginBottom: 24,
-    },
-    imageSection: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: -30,
-        zIndex: 2,
-    },
-    walletImage: {
-        width: width * 0.5,
-        height: width * 0.38,
-    },
-
-    /* ── Bottom Sheet ── */
-    bottomSheet: {
-        flex: 1,
-        backgroundColor: '#1e1e1e',
-        borderTopLeftRadius: 28,
-        borderTopRightRadius: 28,
-        paddingHorizontal: 28,
-        paddingTop: 44,
-        paddingBottom: 60,
-        zIndex: 1,
-    },
-
-    /* ── Inputs ── */
-    inputWrapper: {
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-        marginBottom: 14,
-        height: 50,
-        justifyContent: 'center',
-        paddingHorizontal: 16,
-    },
-    input: {
-        color: '#FFFFFF',
-        fontSize: 15,
-        height: '100%',
-    },
-
-    /* ── Forgot ── */
-    forgotButton: {
-        alignSelf: 'flex-start',
-        marginBottom: 20,
-        marginTop: 2,
-    },
-    forgotText: {
-        fontSize: 13,
-        color: 'rgba(255, 255, 255, 0.45)',
-    },
-
-    /* ── Login Button ── */
-    loginButton: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-        height: 50,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 16,
-    },
-    loginButtonDisabled: {
-        opacity: 0.6,
-    },
-    loginButtonText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#161616',
-    },
-
-    /* ── Sign Up ── */
-    signupRow: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        marginBottom: 20,
-    },
-    signupText: {
-        fontSize: 13,
-        color: 'rgba(255, 255, 255, 0.4)',
-    },
-    signupLink: {
-        fontSize: 13,
-        color: 'rgba(255, 255, 255, 0.4)',
-        textDecorationLine: 'underline',
-    },
-
-    /* ── Divider ── */
-    divider: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 20,
-    },
-    dividerLine: {
-        flex: 1,
-        height: 1,
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    },
-    dividerText: {
-        fontSize: 13,
-        color: 'rgba(255, 255, 255, 0.35)',
-        marginHorizontal: 16,
-    },
-
-    /* ── Social Buttons ── */
-    socialButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 12,
-        height: 50,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-    },
-    socialButtonText: {
-        fontSize: 15,
-        color: '#FFFFFF',
-        fontWeight: '500',
-    },
-});

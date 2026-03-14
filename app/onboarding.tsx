@@ -6,13 +6,10 @@ import {
     Animated,
     Dimensions,
     FlatList,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
 } from 'react-native';
+import { Button, Text, YStack, XStack } from 'tamagui';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 const slides = [
     {
@@ -76,46 +73,65 @@ export default function OnboardingScreen() {
 
     const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 50 }).current;
 
-    const renderSlide = ({ item, index }: { item: typeof slides[0]; index: number }) => {
+    const renderSlide = ({ item }: { item: typeof slides[0] }) => {
         return (
-            <View style={styles.slide}>
+            <YStack width={width} flex={1}>
                 {/* Background Image */}
                 <Image
                     source={item.image}
-                    style={styles.backgroundImage}
+                    style={{ width: '100%', height: '100%', position: 'absolute' }}
                     contentFit="cover"
                 />
 
                 {/* Dark overlay at bottom for readability */}
-                <View style={styles.imageOverlay} />
+                <YStack
+                    position="absolute"
+                    bottom={0}
+                    left={0}
+                    right={0}
+                    height="30%"
+                    backgroundColor="transparent"
+                />
 
                 {/* Float badge (top) */}
-                <View style={[styles.floatingBadge, item.floatPosition]}>
+                <YStack
+                    position="absolute"
+                    borderRadius={16}
+                    overflow="hidden"
+                    elevation={8}
+                    {...item.floatPosition}
+                >
                     <Image
                         source={item.floatBadge}
-                        style={styles.badgeImage}
+                        style={{ height: 44, width: 220 }}
                         contentFit="contain"
                     />
-                </View>
+                </YStack>
 
                 {/* Bottom badge */}
-                <View style={[styles.floatingBadge, item.badgePosition]}>
+                <YStack
+                    position="absolute"
+                    borderRadius={16}
+                    overflow="hidden"
+                    elevation={8}
+                    {...item.badgePosition}
+                >
                     <Image
                         source={item.badge}
-                        style={styles.badgeImage}
+                        style={{ height: 44, width: 220 }}
                         contentFit="contain"
                     />
-                </View>
-            </View>
+                </YStack>
+            </YStack>
         );
     };
 
     return (
-        <View style={styles.container}>
+        <YStack flex={1} backgroundColor="#161616">
             <StatusBar style="light" />
 
             {/* Image Carousel */}
-            <View style={styles.carouselContainer}>
+            <YStack flex={1}>
                 <FlatList
                     ref={flatListRef}
                     data={slides}
@@ -134,7 +150,13 @@ export default function OnboardingScreen() {
                 />
 
                 {/* Dots */}
-                <View style={styles.dotsContainer}>
+                <XStack
+                    position="absolute"
+                    bottom={16}
+                    alignSelf="center"
+                    alignItems="center"
+                    gap={6}
+                >
                     {slides.map((_, i) => {
                         const inputRange = [(i - 1) * width, i * width, (i + 1) * width];
                         const dotWidth = scrollX.interpolate({
@@ -150,146 +172,79 @@ export default function OnboardingScreen() {
                         return (
                             <Animated.View
                                 key={i}
-                                style={[
-                                    styles.dot,
-                                    { width: dotWidth, opacity: dotOpacity },
-                                ]}
+                                style={{
+                                    height: 8,
+                                    borderRadius: 4,
+                                    backgroundColor: '#FFFFFF',
+                                    width: dotWidth,
+                                    opacity: dotOpacity,
+                                }}
                             />
                         );
                     })}
-                </View>
-            </View>
+                </XStack>
+            </YStack>
 
             {/* Bottom Card */}
-            <View style={styles.bottomCard}>
-                <Text style={styles.title}>{slides[currentIndex].title}</Text>
-                <Text style={styles.description}>{slides[currentIndex].description}</Text>
+            <YStack
+                backgroundColor="#1e1e1e"
+                borderTopLeftRadius={28}
+                borderTopRightRadius={28}
+                paddingHorizontal={28}
+                paddingTop={32}
+                paddingBottom={50}
+            >
+                <Text
+                    fontSize={26}
+                    fontWeight="700"
+                    color="#FFFFFF"
+                    textAlign="center"
+                    marginBottom={12}
+                >
+                    {slides[currentIndex].title}
+                </Text>
+                <Text
+                    fontSize={14}
+                    color="rgba(255, 255, 255, 0.5)"
+                    textAlign="center"
+                    lineHeight={22}
+                    marginBottom={28}
+                    paddingHorizontal={8}
+                >
+                    {slides[currentIndex].description}
+                </Text>
 
                 {/* Next Button */}
-                <TouchableOpacity style={styles.nextButton} onPress={handleNext} activeOpacity={0.85}>
-                    <Text style={styles.nextButtonText}>
+                <Button
+                    backgroundColor="#FFFFFF"
+                    borderRadius={12}
+                    height={50}
+                    onPress={handleNext}
+                    pressStyle={{ opacity: 0.85 }}
+                    marginBottom={12}
+                >
+                    <Text fontSize={16} fontWeight="700" color="#161616">
                         {currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}
                     </Text>
-                </TouchableOpacity>
+                </Button>
 
                 {/* Skip Button */}
-                <TouchableOpacity style={styles.skipButton} onPress={handleSkip} activeOpacity={0.85}>
-                    <Text style={styles.skipButtonText}>Skip</Text>
-                </TouchableOpacity>
-            </View>
-        </View>
+                <Button
+                    unstyled
+                    borderRadius={12}
+                    height={50}
+                    alignItems="center"
+                    justifyContent="center"
+                    borderWidth={1}
+                    borderColor="rgba(255, 255, 255, 0.2)"
+                    onPress={handleSkip}
+                    pressStyle={{ opacity: 0.85 }}
+                >
+                    <Text fontSize={16} fontWeight="600" color="#FFFFFF">
+                        Skip
+                    </Text>
+                </Button>
+            </YStack>
+        </YStack>
     );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#161616',
-    },
-
-    /* ── Carousel ── */
-    carouselContainer: {
-        flex: 1,
-    },
-    slide: {
-        width,
-        flex: 1,
-    },
-    backgroundImage: {
-        width: '100%',
-        height: '100%',
-        position: 'absolute',
-    },
-    imageOverlay: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: '30%',
-        backgroundColor: 'transparent',
-    },
-
-    /* ── Floating Badges ── */
-    floatingBadge: {
-        position: 'absolute',
-        borderRadius: 16,
-        overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 8,
-    },
-    badgeImage: {
-        height: 44,
-        width: 220,
-    },
-
-    /* ── Dots ── */
-    dotsContainer: {
-        position: 'absolute',
-        bottom: 16,
-        flexDirection: 'row',
-        alignSelf: 'center',
-        alignItems: 'center',
-        gap: 6,
-    },
-    dot: {
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: '#FFFFFF',
-    },
-
-    /* ── Bottom Card ── */
-    bottomCard: {
-        backgroundColor: '#1e1e1e',
-        borderTopLeftRadius: 28,
-        borderTopRightRadius: 28,
-        paddingHorizontal: 28,
-        paddingTop: 32,
-        paddingBottom: 50,
-    },
-    title: {
-        fontSize: 26,
-        fontWeight: '700',
-        color: '#FFFFFF',
-        textAlign: 'center',
-        marginBottom: 12,
-    },
-    description: {
-        fontSize: 14,
-        color: 'rgba(255, 255, 255, 0.5)',
-        textAlign: 'center',
-        lineHeight: 22,
-        marginBottom: 28,
-        paddingHorizontal: 8,
-    },
-
-    /* ── Buttons ── */
-    nextButton: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-        height: 50,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 12,
-    },
-    nextButtonText: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#161616',
-    },
-    skipButton: {
-        borderRadius: 12,
-        height: 50,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-    },
-    skipButtonText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#FFFFFF',
-    },
-});

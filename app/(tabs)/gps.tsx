@@ -1,13 +1,12 @@
 import Feather from '@expo/vector-icons/Feather';
 import React, { useRef, useState } from 'react';
-import { Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
+import { Text, XStack, YStack } from 'tamagui';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTransactions } from '../../context/TransactionContext';
-
-const { width } = Dimensions.get('window');
 
 export default function GpsScreen() {
     const insets = useSafeAreaInsets();
@@ -16,21 +15,19 @@ export default function GpsScreen() {
     const { transactions } = useTransactions();
     const { colors, theme } = useAppTheme();
 
-    // Filter only transactions that have valid coordinates
     const locations = transactions
         .filter(t => t.lat && t.lng)
         .map(t => ({
             id: t.id,
             name: t.locationName || 'Unknown Location',
             amount: (t.type === 'expense' ? '-' : '+') + '₱' + t.amount.toLocaleString(undefined, { minimumFractionDigits: 2 }),
-            type: t.category, // e.g. 'food' -> 'coffee' icon mapping needs to be handled
+            type: t.category,
             lat: t.lat,
             lng: t.lng,
             address: new Date(t.date).toLocaleDateString(),
             isExpense: t.type === 'expense'
         }));
 
-    // Define SVGs for the map icons mapping
     const currentSvgs = {
         default: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle></svg>`,
         food: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>`,
@@ -39,18 +36,20 @@ export default function GpsScreen() {
         bills: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`
     };
 
-    const leafletHTML = `
+    const mapboxHTML = `
     <!DOCTYPE html>
     <html>
     <head>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <meta charset="utf-8">
+      <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
+      <link href="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.css" rel="stylesheet">
+      <script src="https://api.mapbox.com/mapbox-gl-js/v3.1.2/mapbox-gl.js"></script>
       <style>
         body { margin: 0; padding: 0; background-color: ${colors.background}; }
-        #map { width: 100%; height: 100vh; }
-        .leaflet-popup-content-wrapper { background: ${colors.card}; color: ${colors.text}; border-radius: 8px; border: 1px solid ${colors.border}; }
-        .leaflet-popup-tip { background: ${colors.card}; border: 1px solid ${colors.border}; border-top: none; border-left: none; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        
+        .mapboxgl-popup-content { background: ${colors.card}; color: ${colors.text}; border-radius: 8px; border: 1px solid ${colors.border}; padding: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .mapboxgl-popup-tip { border-top-color: ${colors.border} !important; border-bottom-color: ${colors.border} !important; }
         
         .custom-icon { 
             background: linear-gradient(135deg, #007DFE, #0057B7);
@@ -61,6 +60,9 @@ export default function GpsScreen() {
             align-items: center;
             justify-content: center;
             transition: all 0.3s ease;
+            width: 36px;
+            height: 36px;
+            cursor: pointer;
         }
         .custom-icon svg {
             filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
@@ -69,6 +71,7 @@ export default function GpsScreen() {
             transform: scale(1.2);
             border-color: #4CAF50;
             background: linear-gradient(135deg, #43A047, #2E7D32);
+            z-index: 10 !important;
         }
         .custom-icon.expense {
             background: linear-gradient(135deg, #FF5252, #D32F2F);
@@ -78,40 +81,50 @@ export default function GpsScreen() {
     <body>
       <div id="map"></div>
       <script>
-        var map = L.map('map', { zoomControl: false }).setView([14.5547, 121.0244], 14);
+        mapboxgl.accessToken = '${process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN}';
         
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/${theme === 'dark' ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png', {
-          attribution: '&copy; OpenStreetMap &copy; CARTO',
-          subdomains: 'abcd',
-          maxZoom: 19
-        }).addTo(map);
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/${theme === 'dark' ? 'dark-v11' : 'light-v11'}',
+            center: [121.0244, 14.5547], // lng, lat
+            zoom: 14,
+            attributionControl: false
+        });
 
         var locations = ${JSON.stringify(locations)};
         var icons = ${JSON.stringify(currentSvgs)};
         var markers = {};
+        var popups = {};
 
         locations.forEach(function(loc) {
            var svgContent = icons[loc.type] || icons['default'];
            var isExpense = loc.isExpense;
            
-           var customIcon = L.divIcon({
-              className: 'custom-icon icon-' + loc.id + (isExpense ? ' expense' : ''),
-              iconSize: [36, 36],
-              iconAnchor: [18, 18],
-              popupAnchor: [0, -10],
-              html: svgContent
-           });
-
-           var marker = L.marker([loc.lat, loc.lng], { icon: customIcon }).addTo(map);
+           // Create DOM element for the marker
+           var el = document.createElement('div');
+           el.className = 'custom-icon icon-' + loc.id + (isExpense ? ' expense' : '');
+           el.innerHTML = svgContent;
            
+           // Create Popup
            var popupContent = '<div style="text-align: center;">' +
                               '<div style="font-weight: bold; margin-bottom: 2px; color: ${colors.text}">' + loc.name + '</div>' +
                               '<div style="color: ' + (isExpense ? '${colors.danger}' : '#4CAF50') + '; font-weight: bold; font-size: 14px;">' + loc.amount + '</div>' +
                               '</div>';
+                              
+           var popup = new mapboxgl.Popup({ offset: 25, closeButton: false })
+               .setHTML(popupContent);
+               
+           popups[loc.id] = popup;
 
-           marker.bindPopup(popupContent);
-           
-           marker.on('click', function() {
+           // Add Marker to Map
+           var marker = new mapboxgl.Marker(el)
+               .setLngLat([loc.lng, loc.lat])
+               .setPopup(popup)
+               .addTo(map);
+               
+           // Handle click to communicate with React Native
+           el.addEventListener('click', function(e) {
+              e.stopPropagation(); // prevent map click from hiding popup immediately
               window.ReactNativeWebView.postMessage(JSON.stringify(loc));
               highlightMarker(loc.id);
            });
@@ -126,10 +139,23 @@ export default function GpsScreen() {
         }
 
         function flyToLocation(lat, lng, id) {
-            map.flyTo([lat, lng], 17, { animate: true, duration: 1.0 });
+            map.flyTo({
+                center: [lng, lat],
+                zoom: 17,
+                speed: 1.2,
+                curve: 1,
+                essential: true
+            });
             highlightMarker(id);
             var marker = markers[id];
-            if (marker) marker.openPopup();
+            var popup = popups[id];
+            
+            // Close all other popups
+            Object.values(popups).forEach(p => p.remove());
+            
+            if (marker && popup) {
+                marker.togglePopup();
+            }
         }
       </script>
     </body>
@@ -145,74 +171,89 @@ export default function GpsScreen() {
         try {
             const loc = JSON.parse(event.nativeEvent.data);
             setSelectedLocation(loc);
-        } catch (e) {
+        } catch (_e) {
             // ignore
         }
     };
 
     return (
-        <View style={styles.container}>
+        <YStack flex={1}>
             <WebView
                 ref={webViewRef}
                 originWhitelist={['*']}
-                source={{ html: leafletHTML }}
-                style={[styles.map, { backgroundColor: colors.background }]}
+                source={{ html: mapboxHTML }}
+                style={{ flex: 1, backgroundColor: colors.background }}
                 onMessage={onMessage}
                 javaScriptEnabled={true}
                 domStorageEnabled={true}
             />
 
-            <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
-                <Text style={styles.headerTitle}>Spending Tracker</Text>
-                <View style={[styles.locationBadge, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <XStack
+                position="absolute" top={0} left={0} right={0}
+                paddingTop={insets.top + 20} paddingHorizontal={20}
+                justifyContent="space-between" alignItems="center"
+            >
+                <Text fontSize={20} fontWeight="800" color="#FFF"
+                    style={{ textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}
+                >
+                    Spending Tracker
+                </Text>
+                <XStack
+                    alignItems="center" paddingHorizontal={12} paddingVertical={6}
+                    borderRadius={12} gap={6} borderWidth={1}
+                    backgroundColor={colors.card} borderColor={colors.border}
+                >
                     <Feather name="map-pin" size={12} color="#4CAF50" />
-                    <Text style={styles.locationText}>Makati City, PH</Text>
-                </View>
-            </View>
+                    <Text fontSize={12} fontWeight="600" color="#4CAF50">Makati City, PH</Text>
+                </XStack>
+            </XStack>
 
-            <View style={[styles.bottomSheet, { backgroundColor: theme === 'dark' ? 'rgba(22, 22, 22, 0.95)' : 'rgba(255, 255, 255, 0.95)', borderTopColor: colors.border }]}>
-                <View style={[styles.dragHandle, { backgroundColor: colors.border }]} />
-                <Text style={[styles.sheetTitle, { color: colors.text }]}>Nearby Transactions</Text>
+            <YStack
+                position="absolute" bottom={0} left={0} right={0}
+                height="40%"
+                borderTopLeftRadius={30} borderTopRightRadius={30}
+                padding={24} paddingBottom={0}
+                borderTopWidth={1} elevation={20}
+                backgroundColor={theme === 'dark' ? 'rgba(22, 22, 22, 0.95)' : 'rgba(255, 255, 255, 0.95)'}
+                borderTopColor={colors.border}
+            >
+                <YStack width={40} height={4} borderRadius={2} alignSelf="center" marginBottom={20} backgroundColor={colors.border} />
+                <Text fontSize={16} fontWeight="700" marginBottom={16} color={colors.text}>
+                    Nearby Transactions
+                </Text>
 
-                <Animated.ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
                     {locations.map((loc, index) => (
-                        <TouchableOpacity key={loc.id} onPress={() => focusLocation(loc)}>
-                            <Animated.View entering={FadeInDown.delay(200 + index * 100)} style={[
-                                styles.locationItem,
-                                { borderColor: colors.border, backgroundColor: 'transparent' },
-                                selectedLocation?.id === loc.id && { backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)', borderColor: colors.border }
-                            ]}>
-                                <View style={[styles.locationIcon, { backgroundColor: colors.border }]}>
-                                    <Feather name={loc.type === 'food' ? 'coffee' : loc.type === 'shopping' ? 'shopping-bag' : 'grid' as any} size={20} color={colors.text} />
-                                </View>
-                                <View style={styles.locationInfo}>
-                                    <Text style={[styles.locationName, { color: colors.text }]}>{loc.name}</Text>
-                                    <Text style={[styles.locationDate, { color: colors.textSecondary }]}>{loc.address}</Text>
-                                </View>
-                                <Text style={[styles.locationAmount, { color: loc.isExpense ? colors.danger : colors.activeToggle }]}>{loc.amount}</Text>
+                        <YStack key={loc.id} pressStyle={{ opacity: 0.7 }} onPress={() => focusLocation(loc)}>
+                            <Animated.View entering={FadeInDown.delay(200 + index * 100)}>
+                                <XStack
+                                    alignItems="center" marginBottom={16}
+                                    padding={12} borderRadius={12} borderWidth={1}
+                                    borderColor={colors.border}
+                                    backgroundColor={selectedLocation?.id === loc.id
+                                        ? (theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)')
+                                        : 'transparent'}
+                                >
+                                    <YStack
+                                        width={40} height={40} borderRadius={20}
+                                        alignItems="center" justifyContent="center" marginRight={12}
+                                        backgroundColor={colors.border}
+                                    >
+                                        <Feather name={loc.type === 'food' ? 'coffee' : loc.type === 'shopping' ? 'shopping-bag' : 'grid' as any} size={20} color={colors.text} />
+                                    </YStack>
+                                    <YStack flex={1}>
+                                        <Text fontSize={14} fontWeight="600" color={colors.text}>{loc.name}</Text>
+                                        <Text fontSize={12} color={colors.textSecondary}>{loc.address}</Text>
+                                    </YStack>
+                                    <Text fontSize={14} fontWeight="700" color={loc.isExpense ? colors.danger : colors.activeToggle}>
+                                        {loc.amount}
+                                    </Text>
+                                </XStack>
                             </Animated.View>
-                        </TouchableOpacity>
+                        </YStack>
                     ))}
-                </Animated.ScrollView>
-            </View>
-        </View>
+                </ScrollView>
+            </YStack>
+        </YStack>
     );
 }
-
-const styles = StyleSheet.create({
-    container: { flex: 1 },
-    map: { flex: 1 },
-    header: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-    headerTitle: { fontSize: 20, fontWeight: '800', color: '#FFF', textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
-    locationBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 12, gap: 6, borderWidth: 1 },
-    locationText: { fontSize: 12, fontWeight: '600', color: '#4CAF50' },
-    bottomSheet: { position: 'absolute', bottom: 0, left: 0, right: 0, height: '40%', borderTopLeftRadius: 30, borderTopRightRadius: 30, padding: 24, paddingBottom: 0, borderTopWidth: 1, shadowColor: '#000', shadowOffset: { width: 0, height: -5 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 20 },
-    dragHandle: { width: 40, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
-    sheetTitle: { fontSize: 16, fontWeight: '700', marginBottom: 16 },
-    locationItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 16, padding: 12, borderRadius: 12, borderWidth: 1 },
-    locationIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-    locationInfo: { flex: 1 },
-    locationName: { fontSize: 14, fontWeight: '600' },
-    locationDate: { fontSize: 12 },
-    locationAmount: { fontSize: 14, fontWeight: '700' },
-});
