@@ -1,4 +1,5 @@
 
+import "@tamagui/native/setup-zeego";
 import "react-native-reanimated";
 
 import { ClerkProvider, useAuth } from "@clerk/clerk-expo";

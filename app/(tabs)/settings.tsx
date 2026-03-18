@@ -8,7 +8,7 @@ import React, { useState } from 'react';
 import { Alert, ScrollView, Switch } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Button, Text, XStack, YStack } from 'tamagui';
+import { Text, XStack, YStack } from 'tamagui';
 import { useAppTheme } from '../../context/ThemeContext';
 
 const SECTIONS = [
@@ -50,8 +50,7 @@ export default function SettingsScreen() {
 
     const getSwitchValue = (id: string) => {
         if (id === 'theme') return theme === 'dark';
-        // @ts-ignore
-        return toggles[id] ?? false;
+        return toggles[id as keyof typeof toggles] ?? false;
     };
 
     const handleToggle = async (key: string) => {

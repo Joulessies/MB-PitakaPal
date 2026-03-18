@@ -8,15 +8,17 @@ export interface Account {
     balance: number;
     type: string;
     icon: string;
-    colors: string[]; // Array of hex strings
+    colors: string[];
     number: string;
-    theme: string; // 'light', 'dark', 'platinum' etc.
+    theme: string;
 }
 
 interface AccountContextType {
     accounts: Account[];
     addAccount: (acc: Omit<Account, 'id'>) => Promise<void>;
     updateAccountBalance: (id: string, newBalance: number) => Promise<void>;
+    renameAccount: (id: string, newName: string) => Promise<void>;
+    deleteAccount: (id: string) => Promise<void>;
     loading: boolean;
 }
 
@@ -24,6 +26,8 @@ const AccountContext = createContext<AccountContextType>({
     accounts: [],
     addAccount: async () => { },
     updateAccountBalance: async () => { },
+    renameAccount: async () => { },
+    deleteAccount: async () => { },
     loading: true,
 });
 
@@ -60,7 +64,6 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
                     number: d.number,
                     theme: d.theme || 'light' // Add 'theme' column or default
                 }));
-                // If no accounts, maybe add default cash? Or handle in UI.
                 setAccounts(mappedAccounts);
             }
         } catch (e) {
@@ -85,7 +88,7 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
             icon: newAcc.icon,
             color_theme: JSON.stringify(newAcc.colors),
             number: newAcc.number,
-            theme: newAcc.theme // assuming we add this column too or map it
+            theme: newAcc.theme
         };
 
         const { data, error } = await supabase
@@ -127,8 +130,38 @@ export const AccountProvider: React.FC<{ children: React.ReactNode }> = ({ child
         }
     };
 
+    const renameAccount = async (id: string, newName: string) => {
+        const { error } = await supabase
+            .from('accounts')
+            .update({ name: newName })
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error renaming account:', error);
+            throw error;
+        }
+
+        setAccounts(prev => prev.map(acc =>
+            acc.id === id ? { ...acc, name: newName } : acc
+        ));
+    };
+
+    const deleteAccount = async (id: string) => {
+        const { error } = await supabase
+            .from('accounts')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error('Error deleting account:', error);
+            throw error;
+        }
+
+        setAccounts(prev => prev.filter(acc => acc.id !== id));
+    };
+
     return (
-        <AccountContext.Provider value={{ accounts, addAccount, updateAccountBalance, loading }}>
+        <AccountContext.Provider value={{ accounts, addAccount, updateAccountBalance, renameAccount, deleteAccount, loading }}>
             {children}
         </AccountContext.Provider>
     );

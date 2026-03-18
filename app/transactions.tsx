@@ -5,76 +5,87 @@ import { FlatList } from 'react-native';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Input, Text, XStack, YStack } from 'tamagui';
-
-// Extended Mock Data
-const ALL_TRANSACTIONS = [
-    { id: '1', title: '7-Eleven Cash In', subtitle: 'GCash', amount: 5000, date: 'Today', type: 'in', category: 'Cash In' },
-    { id: '2', title: 'Spotify Premium', subtitle: 'Maya', amount: -129, date: 'Today', type: 'out', category: 'Entertainment' },
-    { id: '3', title: 'Jollibee Delivery', subtitle: 'GCash', amount: -650, date: 'Yesterday', type: 'out', category: 'Food' },
-    { id: '4', title: 'Freelance Payment', subtitle: 'UnionBank', amount: 15000, date: 'Yesterday', type: 'in', category: 'Income' },
-    { id: '5', title: 'Meralco Bill', subtitle: 'GoTyme', amount: -3200, date: 'Dec 12', type: 'out', category: 'Bills' },
-    { id: '6', title: 'Netflix Subscription', subtitle: 'Maya', amount: -549, date: 'Dec 10', type: 'out', category: 'Entertainment' },
-    { id: '7', title: 'Grocery Shopping', subtitle: 'GCash', amount: -4500, date: 'Dec 08', type: 'out', category: 'Food' },
-    { id: '8', title: 'Load Purchase', subtitle: 'GCash', amount: -50, date: 'Dec 05', type: 'out', category: 'Load' },
-];
+import { useTransactions } from '../context/TransactionContext';
+import { useAppTheme } from '../context/ThemeContext';
 
 const FILTERS = ['All', 'Income', 'Expense'];
 
 export default function TransactionsScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
+    const { colors } = useAppTheme();
+    const { transactions, loading } = useTransactions();
     const [activeFilter, setActiveFilter] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
 
-    const filteredTransactions = ALL_TRANSACTIONS.filter(tx => {
+    const filteredTransactions = transactions.filter(tx => {
         const matchesFilter =
             activeFilter === 'All' ? true :
-                activeFilter === 'Income' ? tx.type === 'in' :
-                    tx.type === 'out';
+                activeFilter === 'Income' ? tx.type === 'income' :
+                    tx.type === 'expense';
 
-        const matchesSearch = tx.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            tx.category.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = (tx.note || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (tx.category || '').toLowerCase().includes(searchQuery.toLowerCase());
 
         return matchesFilter && matchesSearch;
     });
 
-    const renderItem = ({ item, index }: { item: typeof ALL_TRANSACTIONS[0], index: number }) => (
+    const getCategoryIcon = (category: string, type: 'income' | 'expense') => {
+        if (type === 'income') return 'arrow-down-left';
+        
+        const map: Record<string, string> = {
+            food: 'coffee', transport: 'truck', shopping: 'shopping-bag',
+            bills: 'file-text', entertainment: 'film', health: 'heart',
+            education: 'book', salary: 'briefcase', freelance: 'edit-3',
+            business: 'trending-up', gift: 'gift', investment: 'bar-chart-2',
+            allowance: 'users', refund: 'rotate-ccw', cash_in: 'download',
+            send: 'send', qr: 'maximize', load: 'smartphone',
+            transfer: 'briefcase', cards: 'credit-card',
+        };
+        return map[category] || 'shopping-bag';
+    };
+
+    const formatCurrency = (amount: number) => {
+        return '₱ ' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    const renderItem = ({ item, index }: { item: any, index: number }) => (
         <Animated.View entering={FadeInUp.delay(index * 50)}>
             <XStack
                 alignItems="center"
                 paddingVertical={16}
                 borderBottomWidth={1}
-                borderBottomColor="rgba(255,255,255,0.05)"
+                borderBottomColor={colors.border}
             >
                 <YStack
                     width={44} height={44} borderRadius={22}
                     justifyContent="center" alignItems="center"
                     marginRight={16}
-                    backgroundColor={item.type === 'in' ? 'rgba(76, 175, 80, 0.1)' : 'rgba(255, 255, 255, 0.05)'}
+                    backgroundColor={item.type === 'income' ? 'rgba(76, 175, 80, 0.1)' : colors.section}
                 >
                     <Feather
-                        name={item.type === 'in' ? 'arrow-down-left' : 'shopping-bag'}
+                        name={getCategoryIcon(item.category, item.type) as any}
                         size={20}
-                        color={item.type === 'in' ? '#4CAF50' : '#FFF'}
+                        color={item.type === 'income' ? '#4CAF50' : colors.text}
                     />
                 </YStack>
                 <YStack flex={1}>
-                    <Text fontSize={16} fontWeight="600" color="#FFF" marginBottom={4}>
-                        {item.title}
+                    <Text fontSize={16} fontWeight="600" color={colors.text} marginBottom={4}>
+                        {item.note || item.category || 'Transaction'}
                     </Text>
-                    <Text fontSize={13} color="rgba(255,255,255,0.4)">
-                        {item.category} • {item.subtitle}
+                    <Text fontSize={13} color={colors.textSecondary}>
+                        {item.category} • {item.account}
                     </Text>
                 </YStack>
                 <YStack alignItems="flex-end">
                     <Text
                         fontSize={16} fontWeight="700" marginBottom={4}
-                        color={item.type === 'in' ? '#4CAF50' : '#FFF'}
+                        color={item.type === 'income' ? '#4CAF50' : colors.text}
                     >
-                        {item.type === 'in' ? '+' : ''}₱ {Math.abs(item.amount).toLocaleString()}
+                        {item.type === 'income' ? '+' : '-'}{formatCurrency(item.amount).replace('₱ ', '')}
                     </Text>
-                    <Text fontSize={12} color="rgba(255,255,255,0.3)">
-                        {item.date}
+                    <Text fontSize={12} color={colors.textSecondary}>
+                        {new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                     </Text>
                 </YStack>
             </XStack>
@@ -82,24 +93,24 @@ export default function TransactionsScreen() {
     );
 
     return (
-        <YStack flex={1} backgroundColor="#161616" paddingTop={insets.top}>
+        <YStack flex={1} backgroundColor={colors.background} paddingTop={insets.top}>
 
             {/* Header */}
             <XStack alignItems="center" justifyContent="space-between" paddingHorizontal={20} paddingVertical={16}>
                 <YStack
                     padding={8}
-                    backgroundColor="rgba(255,255,255,0.05)"
+                    backgroundColor={colors.section}
                     borderRadius={12}
                     pressStyle={{ opacity: 0.7 }}
                     onPress={() => router.back()}
                 >
-                    <Feather name="arrow-left" size={24} color="#FFF" />
+                    <Feather name="arrow-left" size={24} color={colors.text} />
                 </YStack>
-                <Text fontSize={18} fontWeight="700" color="#FFF">
+                <Text fontSize={18} fontWeight="700" color={colors.text}>
                     Transactions
                 </Text>
-                <YStack padding={8} backgroundColor="rgba(255,255,255,0.05)" borderRadius={12}>
-                    <Feather name="sliders" size={20} color="#FFF" />
+                <YStack padding={8} backgroundColor={colors.section} borderRadius={12}>
+                    <Feather name="sliders" size={20} color={colors.text} />
                 </YStack>
             </XStack>
 
@@ -135,9 +146,9 @@ export default function TransactionsScreen() {
                         paddingHorizontal={20}
                         paddingVertical={10}
                         borderRadius={20}
-                        backgroundColor={activeFilter === filter ? '#007DFE' : 'rgba(255,255,255,0.05)'}
+                        backgroundColor={activeFilter === filter ? '#007DFE' : colors.section}
                         borderWidth={1}
-                        borderColor={activeFilter === filter ? '#007DFE' : 'rgba(255,255,255,0.05)'}
+                        borderColor={activeFilter === filter ? '#007DFE' : colors.border}
                         pressStyle={{ opacity: 0.7 }}
                         onPress={() => setActiveFilter(filter)}
                     >
@@ -161,9 +172,9 @@ export default function TransactionsScreen() {
                 showsVerticalScrollIndicator={false}
                 ListEmptyComponent={
                     <YStack alignItems="center" justifyContent="center" marginTop={100}>
-                        <Feather name="inbox" size={48} color="rgba(255,255,255,0.2)" />
-                        <Text color="rgba(255,255,255,0.3)" marginTop={16} fontSize={16}>
-                            No transactions found
+                        <Feather name="inbox" size={48} color={colors.textSecondary} opacity={0.3} />
+                        <Text color={colors.textSecondary} opacity={0.5} marginTop={16} fontSize={16}>
+                            {loading ? 'Refreshing history...' : 'No transactions found'}
                         </Text>
                     </YStack>
                 }

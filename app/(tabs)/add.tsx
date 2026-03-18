@@ -1,4 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
+import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
@@ -7,11 +8,12 @@ import Animated, { FadeInDown, FadeInUp, SlideInDown } from 'react-native-reanim
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Input, Text, XStack, YStack } from 'tamagui';
+import TransactionSuccessModal, { SuccessModalData } from '../../components/TransactionSuccessModal';
 import { useAccounts } from '../../context/AccountContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTransactions } from '../../context/TransactionContext';
 
-const CATEGORIES = [
+const EXPENSE_CATEGORIES = [
     { id: 'food', name: 'Food', icon: 'coffee', color: '#FF7043' },
     { id: 'transport', name: 'Transport', icon: 'truck', color: '#42A5F5' },
     { id: 'shopping', name: 'Shopping', icon: 'shopping-bag', color: '#EC407A' },
@@ -20,6 +22,17 @@ const CATEGORIES = [
     { id: 'health', name: 'Health', icon: 'heart', color: '#EF5350' },
     { id: 'education', name: 'School', icon: 'book', color: '#FFA726' },
     { id: 'other', name: 'Other', icon: 'grid', color: '#78909C' },
+];
+
+const INCOME_CATEGORIES = [
+    { id: 'salary', name: 'Salary', icon: 'briefcase', color: '#4CAF50' },
+    { id: 'freelance', name: 'Freelance', icon: 'edit-3', color: '#26C6DA' },
+    { id: 'business', name: 'Business', icon: 'trending-up', color: '#7E57C2' },
+    { id: 'gift', name: 'Gift', icon: 'gift', color: '#EC407A' },
+    { id: 'investment', name: 'Invest', icon: 'bar-chart-2', color: '#FFA726' },
+    { id: 'allowance', name: 'Allowance', icon: 'users', color: '#42A5F5' },
+    { id: 'refund', name: 'Refund', icon: 'rotate-ccw', color: '#66BB6A' },
+    { id: 'other_income', name: 'Other', icon: 'grid', color: '#78909C' },
 ];
 
 export default function AddTransactionScreen() {
@@ -32,6 +45,8 @@ export default function AddTransactionScreen() {
     const [type, setType] = useState<'expense' | 'income'>('expense');
     const [amount, setAmount] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('food');
+
+    const activeCategories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
     const [selectedAccount, setSelectedAccount] = useState<string>('');
 
     React.useEffect(() => {
@@ -44,6 +59,8 @@ export default function AddTransactionScreen() {
     const [locationCoords, setLocationCoords] = useState<{ lat: number, lng: number } | null>(null);
     const [note, setNote] = useState('');
     const [mapVisible, setMapVisible] = useState(false);
+    const [successVisible, setSuccessVisible] = useState(false);
+    const [successData, setSuccessData] = useState<SuccessModalData | null>(null);
 
     const webViewRef = useRef<WebView>(null);
 
@@ -56,19 +73,33 @@ export default function AddTransactionScreen() {
         const val = parseFloat(amount);
 
         const targetAcc = accounts.find(a => a.id === selectedAccount);
-        if (targetAcc) {
-            const newBalance = type === 'income'
-                ? targetAcc.balance + val
-                : targetAcc.balance - val;
-            updateAccountBalance(targetAcc.id, newBalance).catch(err => console.error("Balance update failed", err));
+        if (!targetAcc) {
+            Alert.alert('No Account Selected', 'Please select a wallet or account first.');
+            return;
         }
+
+        // Check for sufficient balance on expenses
+        if (type === 'expense' && val > targetAcc.balance) {
+            Alert.alert(
+                'Insufficient Balance',
+                `Your ${targetAcc.name} account only has ₱ ${targetAcc.balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}. Please cash in first or reduce the amount.`
+            );
+            return;
+        }
+
+        const newBalance = type === 'income'
+            ? targetAcc.balance + val
+            : targetAcc.balance - val;
+        updateAccountBalance(targetAcc.id, newBalance).catch(err => console.error("Balance update failed", err));
+
+        const catLabel = activeCategories.find(c => c.id === selectedCategory)?.name || selectedCategory;
 
         addTransaction({
             id: Date.now().toString(),
             type,
             amount: parseFloat(amount),
             category: selectedCategory,
-            account: targetAcc ? targetAcc.name : 'Unknown',
+            account: targetAcc.name,
             date,
             locationName: location,
             lat: locationCoords?.lat,
@@ -76,17 +107,17 @@ export default function AddTransactionScreen() {
             note
         });
 
-        Alert.alert('Success', 'Transaction saved successfully!', [
-            {
-                text: 'OK', onPress: () => {
-                    setAmount('');
-                    setNote('');
-                    setLocation('');
-                    setLocationCoords(null);
-                    router.replace('/(tabs)');
-                }
-            }
-        ]);
+        // Show the success modal
+        setSuccessData({
+            type,
+            amount: val,
+            category: selectedCategory,
+            accountName: targetAcc.name,
+            newBalance,
+            note: note || undefined,
+            actionLabel: `${catLabel} • ${type === 'income' ? 'Income' : 'Expense'}`,
+        });
+        setSuccessVisible(true);
     };
 
     const formatDate = (date: Date) => {
@@ -247,11 +278,12 @@ export default function AddTransactionScreen() {
     const handleMapMessage = (event: any) => {
         try {
             const data = JSON.parse(event.nativeEvent.data);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             setLocation(data.address);
             setLocationCoords({ lat: data.lat, lng: data.lng });
             setMapVisible(false);
-        } catch (_e) {
-            // ignore
+        } catch (error) {
+            console.error("Error parsing map message:", error);
         }
     };
 
@@ -275,7 +307,7 @@ export default function AddTransactionScreen() {
                                 flex={1} paddingVertical={10} alignItems="center" borderRadius={8}
                                 backgroundColor={type === 'expense' ? colors.background : 'transparent'}
                                 pressStyle={{ opacity: 0.7 }}
-                                onPress={() => setType('expense')}
+                                onPress={() => { setType('expense'); setSelectedCategory('food'); }}
                             >
                                 <Text fontSize={14} fontWeight="600" color={type === 'expense' ? colors.text : 'rgba(128,128,128,0.5)'}>
                                     Expense
@@ -285,7 +317,7 @@ export default function AddTransactionScreen() {
                                 flex={1} paddingVertical={10} alignItems="center" borderRadius={8}
                                 backgroundColor={type === 'income' ? colors.background : 'transparent'}
                                 pressStyle={{ opacity: 0.7 }}
-                                onPress={() => setType('income')}
+                                onPress={() => { setType('income'); setSelectedCategory('salary'); }}
                             >
                                 <Text fontSize={14} fontWeight="600" color={type === 'income' ? colors.text : 'rgba(128,128,128,0.5)'}>
                                     Income
@@ -358,7 +390,7 @@ export default function AddTransactionScreen() {
                                             Category
                                         </Text>
                                         <XStack flexWrap="wrap" gap={8} justifyContent="space-between">
-                                            {CATEGORIES.map((cat) => (
+                                            {activeCategories.map((cat) => (
                                                 <YStack
                                                     key={cat.id}
                                                     width="22.5%"
@@ -463,27 +495,35 @@ export default function AddTransactionScreen() {
                     onRequestClose={() => setMapVisible(false)}
                 >
                     <YStack flex={1} backgroundColor={colors.background}>
-                        <XStack 
-                            paddingHorizontal={20} 
-                            paddingTop={insets.top + 4} 
-                            paddingBottom={12} 
-                            justifyContent="space-between" 
-                            alignItems="center" 
-                            zIndex={10} 
-                            backgroundColor={colors.card}
+                        {/* Header */}
+                        <YStack
+                            paddingHorizontal={20}
+                            paddingTop={insets.top + 4}
+                            paddingBottom={14}
+                            zIndex={10}
+                            backgroundColor={colors.background}
+                            borderBottomWidth={1}
+                            borderBottomColor={colors.border}
                         >
-                            <Text fontSize={20} fontWeight="800" letterSpacing={-0.5} color={colors.text}>Locations</Text>
-                            <YStack 
-                                width={32} height={32} 
-                                borderRadius={16} 
-                                backgroundColor={colors.border} 
-                                alignItems="center" justifyContent="center"
-                                pressStyle={{ opacity: 0.7 }} 
-                                onPress={() => setMapVisible(false)}
-                            >
-                                <Feather name="x" size={18} color={colors.text} />
-                            </YStack>
-                        </XStack>
+                            <XStack justifyContent="space-between" alignItems="center">
+                                <YStack>
+                                    <Text fontSize={22} fontWeight="800" letterSpacing={-0.5} color={colors.text}>Pick Location</Text>
+                                    <Text fontSize={13} color={colors.textSecondary} marginTop={2}>Move the map to place the pin</Text>
+                                </YStack>
+                                <YStack
+                                    width={36} height={36}
+                                    borderRadius={18}
+                                    backgroundColor={colors.card}
+                                    borderWidth={1}
+                                    borderColor={colors.border}
+                                    alignItems="center" justifyContent="center"
+                                    pressStyle={{ opacity: 0.7, scale: 0.95 }}
+                                    onPress={() => setMapVisible(false)}
+                                >
+                                    <Feather name="x" size={18} color={colors.text} />
+                                </YStack>
+                            </XStack>
+                        </YStack>
 
                         <WebView
                             ref={webViewRef}
@@ -494,31 +534,57 @@ export default function AddTransactionScreen() {
                             javaScriptEnabled={true}
                         />
 
-                        <YStack position="absolute" bottom={40} left={20} right={20} zIndex={100}>
-                            <YStack pressStyle={{ opacity: 0.8 }} onPress={confirmMapSelection}>
+                        {/* Bottom Confirm Button */}
+                        <YStack
+                            position="absolute" bottom={0} left={0} right={0}
+                            paddingHorizontal={20} paddingTop={16}
+                            paddingBottom={insets.bottom > 0 ? insets.bottom + 8 : 28}
+                            zIndex={100}
+                            backgroundColor={theme === 'dark' ? 'rgba(22,22,22,0.92)' : 'rgba(255,255,255,0.92)'}
+                            borderTopWidth={1}
+                            borderTopColor={colors.border}
+                        >
+                            <YStack pressStyle={{ opacity: 0.85, scale: 0.98 }} onPress={confirmMapSelection}>
                                 <LinearGradient
-                                    colors={['#4CAF50', '#2E7D32']}
+                                    colors={['#007DFE', '#0057B7']}
                                     start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                                    style={{ 
-                                        paddingVertical: 18, 
-                                        borderRadius: 20, 
-                                        alignItems: 'center', 
+                                    style={{
+                                        flexDirection: 'row',
+                                        paddingVertical: 18,
+                                        borderRadius: 20,
+                                        alignItems: 'center',
                                         justifyContent: 'center',
-                                        shadowColor: '#000',
-                                        shadowOffset: { width: 0, height: 10 },
-                                        shadowOpacity: 0.3,
-                                        shadowRadius: 15,
+                                        gap: 10,
+                                        shadowColor: '#007DFE',
+                                        shadowOffset: { width: 0, height: 6 },
+                                        shadowOpacity: 0.35,
+                                        shadowRadius: 12,
                                         elevation: 10
                                     }}
                                 >
-                                    <Text fontSize={17} fontWeight="700" color="#FFF" letterSpacing={0.5}>
-                                        Confirm Selection
+                                    <Feather name="check-circle" size={20} color="#FFF" />
+                                    <Text fontSize={17} fontWeight="700" color="#FFF" letterSpacing={0.3}>
+                                        Confirm Location
                                     </Text>
                                 </LinearGradient>
                             </YStack>
                         </YStack>
                     </YStack>
                 </Modal>
+
+                <TransactionSuccessModal
+                    visible={successVisible}
+                    data={successData}
+                    onDone={() => {
+                        setSuccessVisible(false);
+                        setSuccessData(null);
+                        setAmount('');
+                        setNote('');
+                        setLocation('');
+                        setLocationCoords(null);
+                        router.replace('/(tabs)');
+                    }}
+                />
 
             </YStack>
         </TouchableWithoutFeedback>

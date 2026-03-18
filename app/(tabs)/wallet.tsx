@@ -1,12 +1,14 @@
 import Feather from '@expo/vector-icons/Feather';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as SecureStore from 'expo-secure-store';
 import { Link } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Dimensions, KeyboardAvoidingView, Modal, Platform, ScrollView, TouchableOpacity } from 'react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Input, Text, XStack, YStack } from 'tamagui';
+import TransactionSuccessModal, { SuccessModalData } from '../../components/TransactionSuccessModal';
 import { useAccounts } from '../../context/AccountContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTransactions } from '../../context/TransactionContext';
@@ -31,17 +33,13 @@ const SERVICES = [
     { id: 'more', name: 'More', icon: 'grid' },
 ];
 
-const NOTIFICATIONS = [
-    { id: '1', title: 'Payment Received', message: 'You received ₱ 500.00 from GCash', time: '2m ago', icon: 'arrow-down-left', color: '#4CAF50' },
-    { id: '2', title: 'Bill Reminder', message: 'Meralco bill is due in 3 days', time: '1h ago', icon: 'file-text', color: '#FF9800' },
-    { id: '3', title: 'Security Alert', message: 'New login from Chrome on Windows', time: '5h ago', icon: 'shield', color: '#2196F3' },
-];
+const NOTIFICATIONS: any[] = [];
 
 export default function WalletScreen() {
     const insets = useSafeAreaInsets();
     const { colors } = useAppTheme();
     const { transactions, addTransaction } = useTransactions();
-    const { accounts, addAccount, updateAccountBalance, loading } = useAccounts();
+    const { accounts, addAccount, updateAccountBalance, renameAccount, deleteAccount, loading } = useAccounts();
 
     const [activeAccountIndex, setActiveAccountIndex] = useState(0);
     const recentTransactions = transactions.slice(0, 5);
@@ -51,9 +49,22 @@ export default function WalletScreen() {
     const [txDetailsVisible, setTxDetailsVisible] = useState(false);
     const [selectedTx, setSelectedTx] = useState<any>(null);
     const [accSettingsVisible, setAccSettingsVisible] = useState(false);
+    const [successVisible, setSuccessVisible] = useState(false);
+    const [successData, setSuccessData] = useState<SuccessModalData | null>(null);
     const [activeAction, setActiveAction] = useState<any>(null);
     const [amountInput, setAmountInput] = useState('');
     const [recipientInput, setRecipientInput] = useState('');
+
+    // Manage Account state
+    const [renameModalVisible, setRenameModalVisible] = useState(false);
+    const [renameInput, setRenameInput] = useState('');
+    const [changePinVisible, setChangePinVisible] = useState(false);
+    const [pinStep, setPinStep] = useState<'current' | 'new' | 'confirm'>('new');
+    const [currentPinInput, setCurrentPinInput] = useState('');
+    const [newPinInput, setNewPinInput] = useState('');
+    const [confirmPinInput, setConfirmPinInput] = useState('');
+    const [hasExistingPin, setHasExistingPin] = useState(false);
+    const [hiddenBalances, setHiddenBalances] = useState<Set<string>>(new Set());
 
     const formatCurrency = (amount: number) => {
         return '₱ ' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -61,9 +72,163 @@ export default function WalletScreen() {
 
     const activeAccount = accounts[activeAccountIndex] || null;
 
+    // Load hidden balances from SecureStore on mount
+    useEffect(() => {
+        const loadHiddenBalances = async () => {
+            try {
+                const stored = await SecureStore.getItemAsync('pitakapal_hidden_balances');
+                if (stored) {
+                    setHiddenBalances(new Set(JSON.parse(stored)));
+                }
+            } catch (e) {
+                console.error('Failed to load hidden balances:', e);
+            }
+        };
+        loadHiddenBalances();
+    }, []);
+
     const handlePress = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     };
+
+    // ===== MANAGE ACCOUNT HANDLERS =====
+
+    const handleRenameAccount = () => {
+        if (!activeAccount) return;
+        setRenameInput(activeAccount.name);
+        setAccSettingsVisible(false);
+        setRenameModalVisible(true);
+    };
+
+    const submitRename = async () => {
+        if (!activeAccount) return;
+        const trimmed = renameInput.trim();
+        if (!trimmed) {
+            Alert.alert('Invalid Name', 'Please enter a valid account name.');
+            return;
+        }
+        if (trimmed === activeAccount.name) {
+            setRenameModalVisible(false);
+            return;
+        }
+        try {
+            await renameAccount(activeAccount.id, trimmed);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            setRenameModalVisible(false);
+            Alert.alert('Success', `Account renamed to "${trimmed}".`);
+        } catch {
+            Alert.alert('Error', 'Failed to rename account. Please try again.');
+        }
+    };
+
+    const handleChangePIN = useCallback(async () => {
+        if (!activeAccount) return;
+        const existingPin = await SecureStore.getItemAsync(`pitakapal_pin_${activeAccount.id}`);
+        setHasExistingPin(!!existingPin);
+        setPinStep(existingPin ? 'current' : 'new');
+        setCurrentPinInput('');
+        setNewPinInput('');
+        setConfirmPinInput('');
+        setAccSettingsVisible(false);
+        setChangePinVisible(true);
+    }, [activeAccount]);
+
+    const submitPinStep = async () => {
+        if (!activeAccount) return;
+
+        if (pinStep === 'current') {
+            const storedPin = await SecureStore.getItemAsync(`pitakapal_pin_${activeAccount.id}`);
+            if (currentPinInput !== storedPin) {
+                Alert.alert('Incorrect PIN', 'The current PIN you entered is incorrect.');
+                setCurrentPinInput('');
+                return;
+            }
+            setPinStep('new');
+            return;
+        }
+
+        if (pinStep === 'new') {
+            if (newPinInput.length !== 4 || !/^\d{4}$/.test(newPinInput)) {
+                Alert.alert('Invalid PIN', 'Please enter a 4-digit PIN.');
+                return;
+            }
+            setPinStep('confirm');
+            return;
+        }
+
+        if (pinStep === 'confirm') {
+            if (confirmPinInput !== newPinInput) {
+                Alert.alert('PIN Mismatch', 'The PINs do not match. Please try again.');
+                setConfirmPinInput('');
+                return;
+            }
+            try {
+                await SecureStore.setItemAsync(`pitakapal_pin_${activeAccount.id}`, newPinInput);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                setChangePinVisible(false);
+                Alert.alert('Success', 'Your PIN has been updated successfully.');
+            } catch {
+                Alert.alert('Error', 'Failed to save PIN. Please try again.');
+            }
+        }
+    };
+
+    const handleToggleHideBalance = async () => {
+        if (!activeAccount) return;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        setAccSettingsVisible(false);
+
+        setHiddenBalances(prev => {
+            const next = new Set(prev);
+            if (next.has(activeAccount.id)) {
+                next.delete(activeAccount.id);
+            } else {
+                next.add(activeAccount.id);
+            }
+            // Persist to SecureStore
+            SecureStore.setItemAsync('pitakapal_hidden_balances', JSON.stringify([...next])).catch(console.error);
+            return next;
+        });
+    };
+
+    const handleDeleteAccount = () => {
+        if (!activeAccount) return;
+        setAccSettingsVisible(false);
+
+        Alert.alert(
+            'Delete Account',
+            `Are you sure you want to delete "${activeAccount.name}"? This action cannot be undone and all associated data will be lost.`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await deleteAccount(activeAccount.id);
+                            // Clean up stored PIN
+                            await SecureStore.deleteItemAsync(`pitakapal_pin_${activeAccount.id}`).catch(() => {});
+                            // Clean up hidden balances
+                            setHiddenBalances(prev => {
+                                const next = new Set(prev);
+                                next.delete(activeAccount.id);
+                                SecureStore.setItemAsync('pitakapal_hidden_balances', JSON.stringify([...next])).catch(console.error);
+                                return next;
+                            });
+                            // Adjust active index
+                            setActiveAccountIndex(prev => Math.max(0, prev - 1));
+                            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                            Alert.alert('Deleted', 'Account has been removed.');
+                        } catch {
+                            Alert.alert('Error', 'Failed to delete account. Please try again.');
+                        }
+                    }
+                }
+            ]
+        );
+    };
+
+    const isBalanceHidden = (accountId: string) => hiddenBalances.has(accountId);
 
     const handleScroll = (event: any) => {
         const scrollPosition = event.nativeEvent.contentOffset.x;
@@ -142,11 +307,18 @@ export default function WalletScreen() {
         await updateAccountBalance(activeAccount.id, newBalance);
 
         setActionModalVisible(false);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-        setTimeout(() => {
-            Alert.alert('Success', `Transaction successful!\nNew Balance: ${formatCurrency(newBalance)}`);
-        }, 500);
+        
+        // Show the success modal
+        setSuccessData({
+            type: transactionType,
+            amount: amount,
+            category: activeAction.id,
+            accountName: activeAccount.name,
+            newBalance: newBalance,
+            note: recipientInput ? `to ${recipientInput}` : undefined,
+            actionLabel: activeAction.name,
+        });
+        setSuccessVisible(true);
     };
 
     return (
@@ -159,7 +331,9 @@ export default function WalletScreen() {
                         <YStack>
                             <Text fontSize={14} marginBottom={4} color={colors.textSecondary}>Total Balance</Text>
                             <Text fontSize={32} fontWeight="800" letterSpacing={-0.5} color={colors.text}>
-                                {formatCurrency(accounts.reduce((sum, acc) => sum + acc.balance, 0))}
+                                {hiddenBalances.size === accounts.length && accounts.length > 0
+                                    ? '₱ ••••••'
+                                    : formatCurrency(accounts.reduce((sum, acc) => hiddenBalances.has(acc.id) ? sum : sum + acc.balance, 0))}
                             </Text>
                         </YStack>
                         <YStack
@@ -248,7 +422,7 @@ export default function WalletScreen() {
                                                         {acc.number}
                                                     </Text>
                                                     <Text fontSize={28} fontWeight="700" color={acc.theme === 'platinum' ? '#000' : '#FFF'}>
-                                                        {formatCurrency(acc.balance)}
+                                                        {isBalanceHidden(acc.id) ? '₱ ••••••' : formatCurrency(acc.balance)}
                                                     </Text>
                                                 </YStack>
                                                 <XStack justifyContent="space-between" alignItems="center">
@@ -271,9 +445,11 @@ export default function WalletScreen() {
                                         </TouchableOpacity>
                                     ))}
 
-                                    <TouchableOpacity onPress={() => { handlePress(); setAddBankVisible(true); }} style={{ backgroundColor: colors.section, borderColor: colors.border, marginRight: 20, width: 60, height: 190, borderRadius: 24, borderWidth: 1, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center' }}>
-                                        <Feather name="plus" size={32} color={colors.textSecondary} />
-                                        <Text color={colors.textSecondary} fontSize={12} marginTop={8} fontWeight="600" transform={[{ rotate: '-90deg' }]} width={100} textAlign="center">
+                                    <TouchableOpacity onPress={() => { handlePress(); setAddBankVisible(true); }} style={{ backgroundColor: colors.section, borderColor: colors.border, marginRight: 20, width: 120, height: 190, borderRadius: 24, borderWidth: 1.5, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center' }}>
+                                        <YStack width={48} height={48} borderRadius={24} backgroundColor={colors.border} alignItems="center" justifyContent="center" marginBottom={12}>
+                                            <Feather name="plus" size={24} color={colors.textSecondary} />
+                                        </YStack>
+                                        <Text color={colors.textSecondary} fontSize={13} fontWeight="600">
                                             Add Bank
                                         </Text>
                                     </TouchableOpacity>
@@ -640,19 +816,19 @@ export default function WalletScreen() {
                         </XStack>
 
                         <YStack gap={12} marginBottom={24}>
-                            <XStack alignItems="center" gap={16} padding={16} borderRadius={16} backgroundColor={colors.card} pressStyle={{ backgroundColor: colors.border }}>
+                            <XStack alignItems="center" gap={16} padding={16} borderRadius={16} backgroundColor={colors.card} pressStyle={{ backgroundColor: colors.border }} onPress={handleRenameAccount}>
                                 <Feather name="edit" size={20} color={colors.text} />
                                 <Text fontSize={16} color={colors.text}>Rename Account</Text>
                             </XStack>
-                            <XStack alignItems="center" gap={16} padding={16} borderRadius={16} backgroundColor={colors.card} pressStyle={{ backgroundColor: colors.border }}>
+                            <XStack alignItems="center" gap={16} padding={16} borderRadius={16} backgroundColor={colors.card} pressStyle={{ backgroundColor: colors.border }} onPress={handleChangePIN}>
                                 <Feather name="lock" size={20} color={colors.text} />
                                 <Text fontSize={16} color={colors.text}>Change PIN</Text>
                             </XStack>
-                            <XStack alignItems="center" gap={16} padding={16} borderRadius={16} backgroundColor={colors.card} pressStyle={{ backgroundColor: colors.border }}>
-                                <Feather name="eye-off" size={20} color={colors.text} />
-                                <Text fontSize={16} color={colors.text}>Hide Balance</Text>
+                            <XStack alignItems="center" gap={16} padding={16} borderRadius={16} backgroundColor={colors.card} pressStyle={{ backgroundColor: colors.border }} onPress={handleToggleHideBalance}>
+                                <Feather name={activeAccount && isBalanceHidden(activeAccount.id) ? 'eye' : 'eye-off'} size={20} color={colors.text} />
+                                <Text fontSize={16} color={colors.text}>{activeAccount && isBalanceHidden(activeAccount.id) ? 'Show Balance' : 'Hide Balance'}</Text>
                             </XStack>
-                            <XStack alignItems="center" gap={16} padding={16} borderRadius={16} backgroundColor={colors.card} pressStyle={{ backgroundColor: colors.danger }}>
+                            <XStack alignItems="center" gap={16} padding={16} borderRadius={16} backgroundColor={colors.card} pressStyle={{ backgroundColor: colors.danger }} onPress={handleDeleteAccount}>
                                 <Feather name="trash-2" size={20} color={colors.danger} />
                                 <Text fontSize={16} color={colors.danger}>Delete Account</Text>
                             </XStack>
@@ -661,6 +837,200 @@ export default function WalletScreen() {
                 </YStack>
             </Modal>
 
+            {/* Rename Account Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={renameModalVisible}
+                onRequestClose={() => setRenameModalVisible(false)}
+            >
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+                    <YStack flex={1} backgroundColor="rgba(0,0,0,0.8)" justifyContent="center" alignItems="center" padding={24}>
+                        <YStack
+                            width="100%"
+                            backgroundColor={colors.background}
+                            borderRadius={24}
+                            padding={24}
+                            borderWidth={1}
+                            borderColor={colors.border}
+                        >
+                            <XStack justifyContent="space-between" alignItems="center" marginBottom={24}>
+                                <Text fontSize={20} fontWeight="700" color={colors.text}>Rename Account</Text>
+                                <TouchableOpacity onPress={() => setRenameModalVisible(false)}>
+                                    <Feather name="x" size={24} color={colors.text} />
+                                </TouchableOpacity>
+                            </XStack>
+
+                            <Text fontSize={14} marginBottom={8} color={colors.textSecondary}>Enter a new name for this account</Text>
+
+                            <Input
+                                borderRadius={12}
+                                height={56}
+                                paddingHorizontal={16}
+                                paddingVertical={0}
+                                fontSize={16}
+                                backgroundColor={colors.section as any}
+                                color={colors.text as any}
+                                borderColor={colors.border as any}
+                                borderWidth={1}
+                                placeholder="Account name"
+                                placeholderTextColor={colors.textSecondary}
+                                value={renameInput}
+                                onChangeText={setRenameInput}
+                                autoFocus
+                                marginBottom={24}
+                            />
+
+                            <XStack gap={12}>
+                                <YStack
+                                    flex={1}
+                                    backgroundColor={colors.border}
+                                    borderRadius={16}
+                                    padding={16}
+                                    alignItems="center"
+                                    pressStyle={{ opacity: 0.7 }}
+                                    onPress={() => setRenameModalVisible(false)}
+                                >
+                                    <Text color={colors.text} fontWeight="600">Cancel</Text>
+                                </YStack>
+                                <YStack
+                                    flex={1}
+                                    backgroundColor="#007DFE"
+                                    borderRadius={16}
+                                    padding={16}
+                                    alignItems="center"
+                                    pressStyle={{ opacity: 0.8 }}
+                                    onPress={submitRename}
+                                >
+                                    <Text color="#FFF" fontWeight="700">Save</Text>
+                                </YStack>
+                            </XStack>
+                        </YStack>
+                    </YStack>
+                </KeyboardAvoidingView>
+            </Modal>
+
+            {/* Change PIN Modal */}
+            <Modal
+                animationType="fade"
+                transparent={true}
+                visible={changePinVisible}
+                onRequestClose={() => setChangePinVisible(false)}
+            >
+                <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+                    <YStack flex={1} backgroundColor="rgba(0,0,0,0.8)" justifyContent="center" alignItems="center" padding={24}>
+                        <YStack
+                            width="100%"
+                            backgroundColor={colors.background}
+                            borderRadius={24}
+                            padding={24}
+                            borderWidth={1}
+                            borderColor={colors.border}
+                        >
+                            <XStack justifyContent="space-between" alignItems="center" marginBottom={24}>
+                                <Text fontSize={20} fontWeight="700" color={colors.text}>
+                                    {hasExistingPin ? 'Change PIN' : 'Set PIN'}
+                                </Text>
+                                <TouchableOpacity onPress={() => setChangePinVisible(false)}>
+                                    <Feather name="x" size={24} color={colors.text} />
+                                </TouchableOpacity>
+                            </XStack>
+
+                            <YStack alignItems="center" marginBottom={24}>
+                                <YStack
+                                    width={64} height={64} borderRadius={32}
+                                    backgroundColor={colors.section}
+                                    alignItems="center" justifyContent="center" marginBottom={16}
+                                >
+                                    <Feather name="lock" size={28} color="#007DFE" />
+                                </YStack>
+                                <Text fontSize={14} color={colors.textSecondary} textAlign="center">
+                                    {pinStep === 'current' && 'Enter your current 4-digit PIN'}
+                                    {pinStep === 'new' && 'Enter a new 4-digit PIN'}
+                                    {pinStep === 'confirm' && 'Confirm your new PIN'}
+                                </Text>
+                            </YStack>
+
+                            <Input
+                                borderRadius={12}
+                                height={56}
+                                paddingHorizontal={16}
+                                paddingVertical={0}
+                                fontSize={24}
+                                fontWeight="700"
+                                textAlign="center"
+                                letterSpacing={12}
+                                backgroundColor={colors.section as any}
+                                color={colors.text as any}
+                                borderColor={colors.border as any}
+                                borderWidth={1}
+                                placeholder="••••"
+                                placeholderTextColor={colors.textSecondary}
+                                keyboardType="numeric"
+                                maxLength={4}
+                                secureTextEntry
+                                autoFocus
+                                value={
+                                    pinStep === 'current' ? currentPinInput :
+                                    pinStep === 'new' ? newPinInput : confirmPinInput
+                                }
+                                onChangeText={
+                                    pinStep === 'current' ? setCurrentPinInput :
+                                    pinStep === 'new' ? setNewPinInput : setConfirmPinInput
+                                }
+                                marginBottom={8}
+                            />
+
+                            {/* Step indicator */}
+                            <XStack justifyContent="center" gap={8} marginBottom={24}>
+                                {hasExistingPin && (
+                                    <YStack width={8} height={8} borderRadius={4} backgroundColor={pinStep === 'current' ? '#007DFE' : colors.border} />
+                                )}
+                                <YStack width={8} height={8} borderRadius={4} backgroundColor={pinStep === 'new' ? '#007DFE' : colors.border} />
+                                <YStack width={8} height={8} borderRadius={4} backgroundColor={pinStep === 'confirm' ? '#007DFE' : colors.border} />
+                            </XStack>
+
+                            <XStack gap={12}>
+                                <YStack
+                                    flex={1}
+                                    backgroundColor={colors.border}
+                                    borderRadius={16}
+                                    padding={16}
+                                    alignItems="center"
+                                    pressStyle={{ opacity: 0.7 }}
+                                    onPress={() => setChangePinVisible(false)}
+                                >
+                                    <Text color={colors.text} fontWeight="600">Cancel</Text>
+                                </YStack>
+                                <YStack
+                                    flex={1}
+                                    backgroundColor="#007DFE"
+                                    borderRadius={16}
+                                    padding={16}
+                                    alignItems="center"
+                                    pressStyle={{ opacity: 0.8 }}
+                                    onPress={submitPinStep}
+                                >
+                                    <Text color="#FFF" fontWeight="700">
+                                        {pinStep === 'confirm' ? 'Save PIN' : 'Next'}
+                                    </Text>
+                                </YStack>
+                            </XStack>
+                        </YStack>
+                    </YStack>
+                </KeyboardAvoidingView>
+            </Modal>
+
+            <TransactionSuccessModal
+                visible={successVisible}
+                data={successData}
+                onDone={() => {
+                    setSuccessVisible(false);
+                    setSuccessData(null);
+                    setAmountInput('');
+                    setRecipientInput('');
+                }}
+            />
         </YStack>
     );
 }
