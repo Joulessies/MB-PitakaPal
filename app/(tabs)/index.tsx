@@ -197,25 +197,25 @@ export default function HomeScreen() {
                   <YStack
                     width={44} height={44} borderRadius={22}
                     alignItems="center" justifyContent="center" marginRight={16}
-                    backgroundColor={colors.border}
+                    backgroundColor={tx.type === 'income' ? 'rgba(76,175,80,0.1)' : 'rgba(255,82,82,0.1)'}
                   >
                     <Feather
-                      name={tx.category === 'food' ? 'coffee' : tx.category === 'transport' ? 'truck' : 'grid' as any}
+                      name={tx.category === 'food' ? 'coffee' : tx.category === 'transport' ? 'truck' : tx.type === 'income' ? 'arrow-down-left' : 'grid' as any}
                       size={20}
-                      color={colors.text}
+                      color={tx.type === 'income' ? '#4CAF50' : '#FF5252'}
                     />
                   </YStack>
                   <YStack flex={1}>
                     <Text fontSize={14} fontWeight="600" marginBottom={4} color={colors.text}>
-                      {tx.category.toUpperCase()} - {tx.note || tx.account}
+                      {tx.note || tx.category || 'Transaction'} 
                     </Text>
                     <Text fontSize={12} color={colors.textSecondary}>
-                      {formatDate(tx.date)}
+                      {tx.category} • {tx.account}
                     </Text>
                   </YStack>
                   <Text
                     fontSize={15} fontWeight="700"
-                    color={tx.type === 'income' ? colors.activeToggle : colors.danger}
+                    color={tx.type === 'income' ? '#4CAF50' : '#FF5252'}
                   >
                     {tx.type === 'income' ? '+' : '-'}{formatCurrency(Number(tx.amount))}
                   </Text>

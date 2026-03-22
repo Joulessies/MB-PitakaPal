@@ -9,7 +9,7 @@ module.exports = function (api) {
         disableExtraction: process.env.NODE_ENV === 'development',
       },
     ],
-    'react-native-reanimated/plugin', // must be last
+    'react-native-worklets/plugin', // must be last
   ]
   return {
     presets: ['babel-preset-expo'],

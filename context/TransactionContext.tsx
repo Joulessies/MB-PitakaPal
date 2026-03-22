@@ -10,7 +10,7 @@ export interface Transaction {
     category: string;
     account: string;
     date: Date;
-    note: string;
+    note?: string;
     locationName?: string;
     lat?: number;
     lng?: number;
@@ -20,15 +20,19 @@ export interface Transaction {
 interface TransactionContextType {
     transactions: Transaction[];
     addTransaction: (t: Transaction) => Promise<void>;
+    deleteTransaction: (id: string) => Promise<void>;
     balance: number;
     loading: boolean;
+    refreshTransactions: () => Promise<void>;
 }
 
 const TransactionContext = createContext<TransactionContextType>({
     transactions: [],
     addTransaction: async () => { },
+    deleteTransaction: async () => { },
     balance: 0,
     loading: true,
+    refreshTransactions: async () => { },
 });
 
 export const useTransactions = () => useContext(TransactionContext);
@@ -46,6 +50,7 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
 
         try {
+            setLoading(true);
             const { data, error } = await supabase
                 .from('transactions')
                 .select('*')
@@ -59,14 +64,14 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
                 const mappedData: Transaction[] = (data || []).map((t: any) => ({
                     id: t.id,
                     type: t.type,
-                    amount: parseFloat(t.amount),
-                    category: t.category,
-                    account: t.account,
+                    amount: parseFloat(t.amount) || 0,
+                    category: t.category || 'other',
+                    account: t.account || '',
                     date: new Date(t.date),
-                    note: t.note,
-                    locationName: t.location_name,
-                    lat: t.lat ? parseFloat(t.lat) : undefined,
-                    lng: t.lng ? parseFloat(t.lng) : undefined,
+                    note: t.note || undefined,
+                    locationName: t.location_name || undefined,
+                    lat: t.lat != null ? parseFloat(t.lat) : undefined,
+                    lng: t.lng != null ? parseFloat(t.lng) : undefined,
                     user_id: t.user_id
                 }));
                 setTransactions(mappedData);
@@ -80,13 +85,13 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
     useEffect(() => {
         fetchTransactions();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
 
     const addTransaction = async (newTx: Transaction) => {
-        if (!user) return;
+        if (!user) throw new Error("User not authenticated");
 
-        // Prepare payload for Supabase
-        // We exclude 'id' to let Supabase generate UUID, unless specifically required
+        // Prepare payload for Supabase — let Supabase generate the id
         const txPayload = {
             user_id: user.id,
             type: newTx.type,
@@ -94,10 +99,10 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
             category: newTx.category,
             account: newTx.account,
             date: newTx.date.toISOString(),
-            note: newTx.note,
-            location_name: newTx.locationName,
-            lat: newTx.lat,
-            lng: newTx.lng
+            note: newTx.note || null,
+            location_name: newTx.locationName || null,
+            lat: newTx.lat ?? null,
+            lng: newTx.lng ?? null
         };
 
         const { data, error } = await supabase
@@ -108,22 +113,22 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
         if (error) {
             console.error('Error adding transaction:', error);
-            // Fallback for UI responsiveness or offline handling could go here
-        } else {
-            console.log('Transaction added:', data);
+            throw new Error('Failed to add transaction: ' + error.message);
+        }
 
-            // Optimistically update local state with the returned data
+        if (data) {
+            // Update local state with the returned data from Supabase
             const addedTx: Transaction = {
                 id: data.id,
                 type: data.type,
-                amount: parseFloat(data.amount),
-                category: data.category,
-                account: data.account,
+                amount: parseFloat(data.amount) || 0,
+                category: data.category || 'other',
+                account: data.account || '',
                 date: new Date(data.date),
-                note: data.note,
-                locationName: data.location_name,
-                lat: data.lat ? parseFloat(data.lat) : undefined,
-                lng: data.lng ? parseFloat(data.lng) : undefined,
+                note: data.note || undefined,
+                locationName: data.location_name || undefined,
+                lat: data.lat != null ? parseFloat(data.lat) : undefined,
+                lng: data.lng != null ? parseFloat(data.lng) : undefined,
                 user_id: data.user_id
             };
 
@@ -131,12 +136,29 @@ export const TransactionProvider: React.FC<{ children: React.ReactNode }> = ({ c
         }
     };
 
+    const deleteTransaction = async (id: string) => {
+        if (!user) throw new Error("User not authenticated");
+
+        const { error } = await supabase
+            .from('transactions')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', user.id);
+
+        if (error) {
+            console.error('Error deleting transaction:', error);
+            throw new Error('Failed to delete transaction: ' + error.message);
+        }
+
+        setTransactions(prev => prev.filter(tx => tx.id !== id));
+    };
+
     const balance = transactions.reduce((acc, curr) => {
         return curr.type === 'income' ? acc + curr.amount : acc - curr.amount;
     }, 0);
 
     return (
-        <TransactionContext.Provider value={{ transactions, addTransaction, balance, loading }}>
+        <TransactionContext.Provider value={{ transactions, addTransaction, deleteTransaction, balance, loading, refreshTransactions: fetchTransactions }}>
             {children}
         </TransactionContext.Provider>
     );

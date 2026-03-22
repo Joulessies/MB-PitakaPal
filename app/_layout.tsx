@@ -1,4 +1,3 @@
-
 import "@tamagui/native/setup-zeego";
 import "react-native-reanimated";
 
@@ -31,6 +30,7 @@ function MainContent() {
   const { isLoaded } = useAuth();
 
   useEffect(() => {
+    console.log('[MainContent] isLoaded:', isLoaded);
     if (!isLoaded) return;
   }, [isLoaded]);
 
@@ -83,12 +83,15 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    console.log('[RootLayout] fonts loaded:', loaded);
+    console.log('[RootLayout] Clerk key available:', !!CLERK_PUBLISHABLE_KEY);
     if (loaded) {
       SplashScreen.hideAsync();
     }
   }, [loaded]);
 
   if (!loaded) {
+    console.log('[RootLayout] Waiting for fonts...');
     return null;
   }
 

@@ -28,7 +28,8 @@
         "googleMaps": {
           "apiKey": "YOUR_ANDROID_GOOGLE_MAPS_API_KEY"
         }
-      }
+      },
+      "package": "com.joulessies.mbpitakapal"
     },
     "web": {
       "bundler": "metro",

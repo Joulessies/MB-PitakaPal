@@ -64,7 +64,7 @@ export default function AddTransactionScreen() {
 
     const webViewRef = useRef<WebView>(null);
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!amount || parseFloat(amount) <= 0) {
             Alert.alert('Missing Amount', 'Please enter a valid amount.');
             return;
@@ -90,34 +90,40 @@ export default function AddTransactionScreen() {
         const newBalance = type === 'income'
             ? targetAcc.balance + val
             : targetAcc.balance - val;
-        updateAccountBalance(targetAcc.id, newBalance).catch(err => console.error("Balance update failed", err));
 
         const catLabel = activeCategories.find(c => c.id === selectedCategory)?.name || selectedCategory;
 
-        addTransaction({
-            id: Date.now().toString(),
-            type,
-            amount: parseFloat(amount),
-            category: selectedCategory,
-            account: targetAcc.name,
-            date,
-            locationName: location,
-            lat: locationCoords?.lat,
-            lng: locationCoords?.lng,
-            note
-        });
+        try {
+            await addTransaction({
+                id: Date.now().toString(),
+                type,
+                amount: parseFloat(amount),
+                category: selectedCategory,
+                account: targetAcc.name,
+                date,
+                locationName: location,
+                lat: locationCoords?.lat,
+                lng: locationCoords?.lng,
+                note
+            });
 
-        // Show the success modal
-        setSuccessData({
-            type,
-            amount: val,
-            category: selectedCategory,
-            accountName: targetAcc.name,
-            newBalance,
-            note: note || undefined,
-            actionLabel: `${catLabel} • ${type === 'income' ? 'Income' : 'Expense'}`,
-        });
-        setSuccessVisible(true);
+            await updateAccountBalance(targetAcc.id, newBalance);
+
+            // Show the success modal
+            setSuccessData({
+                type,
+                amount: val,
+                category: selectedCategory,
+                accountName: targetAcc.name,
+                newBalance,
+                note: note || undefined,
+                actionLabel: `${catLabel} • ${type === 'income' ? 'Income' : 'Expense'}`,
+            });
+            setSuccessVisible(true);
+        } catch (error) {
+            console.error('Transaction save failed:', error);
+            Alert.alert('Error', 'Failed to save the transaction. Please try again.');
+        }
     };
 
     const formatDate = (date: Date) => {
@@ -221,7 +227,9 @@ export default function AddTransactionScreen() {
             accessToken: mapboxgl.accessToken,
             mapboxgl: mapboxgl,
             marker: false,
-            placeholder: 'Search for a place...'
+            placeholder: 'Search for a place...',
+            countries: 'ph',
+            bbox: [116.0, 4.5, 127.0, 21.5]
         });
         map.addControl(geocoder, 'top-left');
 
@@ -245,8 +253,8 @@ export default function AddTransactionScreen() {
         function confirmLocation() {
             var center = map.getCenter();
             
-            // Format coords for Mapbox geocoding API (lng, lat)
-            var url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/' + center.lng + ',' + center.lat + '.json?access_token=' + mapboxgl.accessToken + '&types=address,poi,neighborhood';
+            // Format coords for Mapbox geocoding API (lng, lat) — restricted to PH
+            var url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/' + center.lng + ',' + center.lat + '.json?access_token=' + mapboxgl.accessToken + '&types=address,poi,neighborhood&country=ph';
             
             fetch(url)
               .then(response => response.json())

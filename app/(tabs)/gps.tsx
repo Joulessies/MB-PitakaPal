@@ -12,6 +12,7 @@ export default function GpsScreen() {
     const insets = useSafeAreaInsets();
     const webViewRef = useRef<WebView>(null);
     const [selectedLocation, setSelectedLocation] = useState<any>(null);
+    const [locationLabel, setLocationLabel] = useState('Locating...');
     const { transactions } = useTransactions();
     const { colors, theme } = useAppTheme();
 
@@ -91,6 +92,55 @@ export default function GpsScreen() {
             attributionControl: false
         });
 
+        // Add geolocate control to center on user's real location
+        var geolocate = new mapboxgl.GeolocateControl({
+            positionOptions: { enableHighAccuracy: true },
+            trackUserLocation: true,
+            showUserHeading: true
+        });
+        map.addControl(geolocate, 'bottom-right');
+        map.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+
+        // Reverse geocode the map center and send the label to React Native
+        var geocodeTimeout = null;
+        function updateLocationLabel() {
+            clearTimeout(geocodeTimeout);
+            geocodeTimeout = setTimeout(function() {
+                var center = map.getCenter();
+                var url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/' + center.lng + ',' + center.lat + '.json?access_token=' + mapboxgl.accessToken + '&types=place,locality,neighborhood&limit=1';
+                fetch(url)
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        var label = 'Unknown Location';
+                        if (data.features && data.features.length > 0) {
+                            var f = data.features[0];
+                            // e.g. "Makati City, Metro Manila, Philippines" → show top-level place
+                            label = f.text;
+                            if (f.context) {
+                                var country = f.context.find(function(c) { return c.id.startsWith('country'); });
+                                if (country) {
+                                    label += ', ' + country.short_code.toUpperCase();
+                                }
+                            }
+                        }
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'location_label', label: label }));
+                    })
+                    .catch(function() {
+                        window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'location_label', label: 'Unknown Location' }));
+                    });
+            }, 400); // debounce 400ms
+        }
+
+        // Update label on initial load
+        map.on('load', function() {
+            updateLocationLabel();
+            // Auto-trigger geolocate to center on user's position
+            geolocate.trigger();
+        });
+
+        // Update label when user pans/zooms the map
+        map.on('moveend', updateLocationLabel);
+
         var locations = ${JSON.stringify(locations)};
         var icons = ${JSON.stringify(currentSvgs)};
         var markers = {};
@@ -124,8 +174,8 @@ export default function GpsScreen() {
                
            // Handle click to communicate with React Native
            el.addEventListener('click', function(e) {
-              e.stopPropagation(); // prevent map click from hiding popup immediately
-              window.ReactNativeWebView.postMessage(JSON.stringify(loc));
+              e.stopPropagation();
+              window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'marker_click', ...loc }));
               highlightMarker(loc.id);
            });
            
@@ -169,8 +219,15 @@ export default function GpsScreen() {
 
     const onMessage = (event: any) => {
         try {
-            const loc = JSON.parse(event.nativeEvent.data);
-            setSelectedLocation(loc);
+            const data = JSON.parse(event.nativeEvent.data);
+            if (data.type === 'location_label') {
+                setLocationLabel(data.label);
+            } else if (data.type === 'marker_click') {
+                setSelectedLocation(data);
+            } else {
+                // Legacy fallback for marker clicks without type
+                setSelectedLocation(data);
+            }
         } catch (_e) {
             // ignore
         }
@@ -204,7 +261,7 @@ export default function GpsScreen() {
                     backgroundColor={colors.card} borderColor={colors.border}
                 >
                     <Feather name="map-pin" size={12} color="#4CAF50" />
-                    <Text fontSize={12} fontWeight="600" color="#4CAF50">Makati City, PH</Text>
+                    <Text fontSize={12} fontWeight="600" color="#4CAF50" numberOfLines={1}>{locationLabel}</Text>
                 </XStack>
             </XStack>
 

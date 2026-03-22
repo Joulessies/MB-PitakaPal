@@ -289,36 +289,41 @@ export default function WalletScreen() {
             transactionType = 'income';
         }
 
-        await addTransaction({
-            id: Date.now().toString(),
-            type: transactionType,
-            amount: amount,
-            category: activeAction.id,
-            account: activeAccount.name,
-            date: new Date(),
-            note: activeAction.name + (recipientInput ? ` to ${recipientInput}` : ''),
-            locationName: 'Wallet Action',
-        });
+        try {
+            await addTransaction({
+                id: Date.now().toString(),
+                type: transactionType,
+                amount: amount,
+                category: activeAction.id,
+                account: activeAccount.name,
+                date: new Date(),
+                note: activeAction.name + (recipientInput ? ` to ${recipientInput}` : ''),
+                locationName: 'Wallet Action',
+            });
 
-        const newBalance = transactionType === 'income'
-            ? activeAccount.balance + amount
-            : activeAccount.balance - amount;
+            const newBalance = transactionType === 'income'
+                ? activeAccount.balance + amount
+                : activeAccount.balance - amount;
 
-        await updateAccountBalance(activeAccount.id, newBalance);
+            await updateAccountBalance(activeAccount.id, newBalance);
 
-        setActionModalVisible(false);
-        
-        // Show the success modal
-        setSuccessData({
-            type: transactionType,
-            amount: amount,
-            category: activeAction.id,
-            accountName: activeAccount.name,
-            newBalance: newBalance,
-            note: recipientInput ? `to ${recipientInput}` : undefined,
-            actionLabel: activeAction.name,
-        });
-        setSuccessVisible(true);
+            setActionModalVisible(false);
+            
+            // Show the success modal
+            setSuccessData({
+                type: transactionType,
+                amount: amount,
+                category: activeAction.id,
+                accountName: activeAccount.name,
+                newBalance: newBalance,
+                note: recipientInput ? `to ${recipientInput}` : undefined,
+                actionLabel: activeAction.name,
+            });
+            setSuccessVisible(true);
+        } catch (error) {
+            console.error('Wallet transaction failed:', error);
+            Alert.alert('Error', 'Failed to process the transaction. Please try again.');
+        }
     };
 
     return (

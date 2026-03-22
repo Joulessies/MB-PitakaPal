@@ -1,4 +1,3 @@
-import { useUser } from '@clerk/clerk-expo';
 import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -16,7 +15,7 @@ import { Input, Text, XStack, YStack } from 'tamagui';
 import { useAccounts } from '../context/AccountContext';
 import { useTransactions } from '../context/TransactionContext';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 const TOTAL_STEPS = 3;
 
 const CURRENCIES = [
@@ -51,7 +50,6 @@ const CURRENCIES = [
 ];
 
 export default function SetupScreen() {
-    const { user } = useUser();
     const { addTransaction } = useTransactions();
     const { addAccount } = useAccounts();
 
@@ -109,19 +107,7 @@ export default function SetupScreen() {
             try {
                 const initialAmount = parseFloat(cashAmount.replace(/,/g, '')) || 0;
 
-                if (initialAmount > 0) {
-                    await addTransaction({
-                        id: Date.now().toString(),
-                        type: 'income',
-                        amount: initialAmount,
-                        category: 'Savings',
-                        account: 'Cash',
-                        date: new Date(),
-                        note: 'Initial Balance',
-                        locationName: 'Setup',
-                    });
-                }
-
+                // Create the Cash Wallet account first
                 await addAccount({
                     name: 'Cash Wallet',
                     balance: initialAmount,
@@ -131,6 +117,20 @@ export default function SetupScreen() {
                     number: 'Cash',
                     theme: 'dark'
                 });
+
+                // Then record the initial balance as a transaction
+                if (initialAmount > 0) {
+                    await addTransaction({
+                        id: Date.now().toString(),
+                        type: 'income',
+                        amount: initialAmount,
+                        category: 'Savings',
+                        account: 'Cash Wallet',
+                        date: new Date(),
+                        note: 'Initial Balance',
+                        locationName: 'Setup',
+                    });
+                }
 
                 router.replace('/(tabs)');
 
@@ -377,7 +377,7 @@ export default function SetupScreen() {
                         alignItems="center"
                         paddingTop={14}
                         pressStyle={{ opacity: 0.7 }}
-                        onPress={() => router.replace('/(tabs)')}
+                        onPress={handleNext}
                     >
                         <Text fontSize={14} color="rgba(255, 255, 255, 0.45)" fontWeight="600">
                             Skip for now

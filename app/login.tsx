@@ -1,4 +1,4 @@
-import { useAuth, useSignIn } from '@clerk/clerk-expo';
+import { useSignIn } from '@clerk/clerk-expo';
 import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
@@ -18,24 +18,14 @@ const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen() {
     const { signIn, setActive, isLoaded } = useSignIn();
-    const { signOut } = useAuth();
     const router = useRouter();
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
 
     const contentOpacity = useRef(new Animated.Value(0)).current;
-
-    useEffect(() => {
-        const cleanup = async () => {
-            try {
-                await signOut();
-            } catch (_err) {
-            }
-        };
-        cleanup();
-    }, []);
 
     const contentTranslateY = useRef(new Animated.Value(20)).current;
     const sheetTranslateY = useRef(new Animated.Value(height * 0.5)).current;
@@ -195,17 +185,18 @@ export default function LoginScreen() {
                         </YStack>
 
                         {/* Password */}
-                        <YStack
+                        <XStack
                             borderRadius={10}
                             borderWidth={1}
                             borderColor="rgba(255, 255, 255, 0.2)"
                             marginBottom={14}
                             height={50}
-                            justifyContent="center"
+                            alignItems="center"
                             paddingHorizontal={16}
                         >
                             <Input
                                 unstyled
+                                flex={1}
                                 color="#FFFFFF"
                                 fontSize={15}
                                 height="100%"
@@ -213,9 +204,12 @@ export default function LoginScreen() {
                                 placeholderTextColor="rgba(255,255,255,0.4)"
                                 value={password}
                                 onChangeText={setPassword}
-                                secureTextEntry
+                                secureTextEntry={!showPassword}
                             />
-                        </YStack>
+                            <YStack padding={6} pressStyle={{ opacity: 0.7 }} onPress={() => setShowPassword(!showPassword)}>
+                                <Feather name={showPassword ? 'eye-off' : 'eye'} size={20} color="rgba(255,255,255,0.5)" />
+                            </YStack>
+                        </XStack>
 
                         {/* Forgot Password */}
                         <XStack alignSelf="flex-start" marginBottom={20} marginTop={2}>
